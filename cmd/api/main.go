@@ -1,0 +1,169 @@
+package main
+
+import (
+	"fmt"
+	"log"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
+	"github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2/middleware/compress"
+	"github.com/gofiber/fiber/v2/middleware/cors"
+	"github.com/gofiber/fiber/v2/middleware/recover"
+	"github.com/gofiber/swagger"
+	"github.com/healthcare-market-research/backend/internal/cache"
+	"github.com/healthcare-market-research/backend/internal/config"
+	"github.com/healthcare-market-research/backend/internal/db"
+	"github.com/healthcare-market-research/backend/internal/handler"
+	"github.com/healthcare-market-research/backend/internal/middleware"
+	"github.com/healthcare-market-research/backend/internal/repository"
+	"github.com/healthcare-market-research/backend/internal/service"
+	"github.com/healthcare-market-research/backend/pkg/logger"
+	"github.com/joho/godotenv"
+
+	_ "github.com/healthcare-market-research/backend/docs"
+)
+
+// @title Healthcare Market Research API
+// @version 1.0
+// @description RESTful API for healthcare market research reports and categories with caching and pagination support
+// @termsOfService https://example.com/terms/
+
+// @contact.name API Support
+// @contact.email support@example.com
+
+// @license.name MIT
+// @license.url https://opensource.org/licenses/MIT
+
+// @host localhost:8081
+// @BasePath /
+// @schemes http https
+
+// @tag.name Health
+// @tag.description Health check endpoints
+
+// @tag.name Reports
+// @tag.description Operations related to healthcare market research reports
+
+// @tag.name Categories
+// @tag.description Operations related to report categories and hierarchies
+func main() {
+	// Load .env file
+	if err := godotenv.Load(); err != nil {
+		log.Println("Warning: .env file not found, using system environment variables")
+	}
+
+	// Load configuration
+	cfg := config.Load()
+
+	// Initialize logger
+	logger.Init(cfg.Environment)
+	logger.Info("Starting Healthcare Market Research API", "environment", cfg.Environment)
+
+	// Connect to database
+	if err := db.Connect(cfg); err != nil {
+		logger.Error("Failed to connect to database", "error", err)
+		os.Exit(1)
+	}
+
+	// Run migrations
+	if err := db.Migrate(); err != nil {
+		logger.Error("Failed to run migrations", "error", err)
+		os.Exit(1)
+	}
+
+	// Connect to Redis (optional - app continues even if Redis fails)
+	if err := cache.Connect(cfg); err != nil {
+		logger.Warn("Failed to connect to Redis, caching will be disabled", "error", err)
+	} else {
+		logger.Info("Redis connected successfully")
+	}
+
+	// Initialize repositories
+	categoryRepo := repository.NewCategoryRepository(db.DB)
+	reportRepo := repository.NewReportRepository(db.DB)
+
+	// Initialize services
+	categoryService := service.NewCategoryService(categoryRepo)
+	reportService := service.NewReportService(reportRepo)
+
+	// Initialize handlers
+	healthHandler := handler.NewHealthHandler()
+	categoryHandler := handler.NewCategoryHandler(categoryService)
+	reportHandler := handler.NewReportHandler(reportService)
+
+	// Initialize Fiber app
+	app := fiber.New(fiber.Config{
+		AppName:      "Healthcare Market Research API",
+		ReadTimeout:  10 * time.Second,
+		WriteTimeout: 10 * time.Second,
+		IdleTimeout:  120 * time.Second,
+	})
+
+	// Global middleware
+	app.Use(recover.New(recover.Config{
+		EnableStackTrace: true,
+	}))
+	app.Use(middleware.RequestID())
+	app.Use(middleware.Logger())
+	app.Use(cors.New(cors.Config{
+		AllowOrigins: "*",
+		AllowMethods: "GET,POST,PUT,DELETE,OPTIONS",
+		AllowHeaders: "Origin, Content-Type, Accept, Authorization, X-Request-ID",
+	}))
+	app.Use(compress.New(compress.Config{
+		Level: compress.LevelBestSpeed,
+	}))
+
+	// Health check endpoint
+	app.Get("/health", healthHandler.Check)
+
+	// Swagger documentation
+	app.Get("/swagger/*", swagger.HandlerDefault)
+
+	// API v1 routes
+	v1 := app.Group("/api/v1")
+
+	// Report routes
+	v1.Get("/reports", reportHandler.GetAll)
+	v1.Post("/reports", reportHandler.Create)
+	v1.Get("/reports/:slug", reportHandler.GetBySlug)
+	v1.Put("/reports/:id", reportHandler.Update)
+	v1.Delete("/reports/:id", reportHandler.Delete)
+	v1.Get("/search", reportHandler.Search)
+
+	// Category routes
+	v1.Get("/categories", categoryHandler.GetAll)
+	v1.Get("/categories/:slug", categoryHandler.GetBySlug)
+	v1.Get("/categories/:slug/reports", reportHandler.GetByCategorySlug)
+
+	// Graceful shutdown
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+
+	go func() {
+		<-c
+		logger.Info("Gracefully shutting down...")
+		_ = app.Shutdown()
+	}()
+
+	// Start server
+	port := fmt.Sprintf(":%s", cfg.Port)
+	logger.Info("Server starting", "port", cfg.Port)
+
+	if err := app.Listen(port); err != nil {
+		logger.Error("Server failed to start", "error", err)
+	}
+
+	// Cleanup
+	logger.Info("Running cleanup tasks...")
+	if err := db.Close(); err != nil {
+		logger.Error("Error closing database", "error", err)
+	}
+	if err := cache.Close(); err != nil {
+		logger.Error("Error closing Redis", "error", err)
+	}
+	logger.Info("Server shutdown complete")
+}

@@ -1,0 +1,180 @@
+package service
+
+import (
+	"fmt"
+	"time"
+
+	"github.com/healthcare-market-research/backend/internal/cache"
+	"github.com/healthcare-market-research/backend/internal/domain/report"
+	"github.com/healthcare-market-research/backend/internal/repository"
+)
+
+type ReportService interface {
+	GetAll(page, limit int) ([]report.Report, int64, error)
+	GetBySlug(slug string) (*report.ReportWithRelations, error)
+	GetByCategorySlug(categorySlug string, page, limit int) ([]report.Report, int64, error)
+	Search(query string, page, limit int) ([]report.Report, int64, error)
+	Create(report *report.Report) error
+	Update(id uint, report *report.Report) error
+	Delete(id uint) error
+}
+
+type reportService struct {
+	repo repository.ReportRepository
+}
+
+func NewReportService(repo repository.ReportRepository) ReportService {
+	return &reportService{repo: repo}
+}
+
+func (s *reportService) GetAll(page, limit int) ([]report.Report, int64, error) {
+	cacheKey := fmt.Sprintf("reports:list:%d:%d", page, limit)
+	totalKey := "reports:total"
+
+	type result struct {
+		Reports []report.Report `json:"reports"`
+		Total   int64           `json:"total"`
+	}
+
+	var res result
+
+	// Use singleflight-protected cache-aside pattern
+	err := cache.GetOrSet(cacheKey, &res, 10*time.Minute, func() (interface{}, error) {
+		reports, total, err := s.repo.GetAll(page, limit)
+		if err != nil {
+			return nil, err
+		}
+
+		// Also cache total separately
+		cache.Set(totalKey, total, 10*time.Minute)
+
+		return result{Reports: reports, Total: total}, nil
+	})
+
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return res.Reports, res.Total, nil
+}
+
+func (s *reportService) GetBySlug(slug string) (*report.ReportWithRelations, error) {
+	cacheKey := fmt.Sprintf("report:slug:%s", slug)
+
+	var rep report.ReportWithRelations
+
+	// Use singleflight-protected cache-aside pattern
+	err := cache.GetOrSet(cacheKey, &rep, 30*time.Minute, func() (interface{}, error) {
+		return s.repo.GetBySlug(slug)
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &rep, nil
+}
+
+func (s *reportService) GetByCategorySlug(categorySlug string, page, limit int) ([]report.Report, int64, error) {
+	cacheKey := fmt.Sprintf("reports:category:%s:%d:%d", categorySlug, page, limit)
+	totalKey := fmt.Sprintf("reports:category:%s:total", categorySlug)
+
+	type result struct {
+		Reports []report.Report `json:"reports"`
+		Total   int64           `json:"total"`
+	}
+
+	var res result
+
+	// Use singleflight-protected cache-aside pattern
+	err := cache.GetOrSet(cacheKey, &res, 10*time.Minute, func() (interface{}, error) {
+		reports, total, err := s.repo.GetByCategorySlug(categorySlug, page, limit)
+		if err != nil {
+			return nil, err
+		}
+
+		// Also cache total separately
+		cache.Set(totalKey, total, 10*time.Minute)
+
+		return result{Reports: reports, Total: total}, nil
+	})
+
+	if err != nil {
+		return nil, 0, err
+	}
+
+	return res.Reports, res.Total, nil
+}
+
+func (s *reportService) Search(query string, page, limit int) ([]report.Report, int64, error) {
+	// Search queries are not cached due to high variability
+	return s.repo.Search(query, page, limit)
+}
+
+func (s *reportService) Create(rep *report.Report) error {
+	err := s.repo.Create(rep)
+	if err != nil {
+		return err
+	}
+
+	// Invalidate all report list caches
+	cache.DeletePattern("reports:list:*")
+	cache.DeletePattern("reports:total")
+
+	// Invalidate category-specific caches if category is set
+	if rep.CategoryID > 0 {
+		cache.DeletePattern(fmt.Sprintf("reports:category:*"))
+	}
+
+	return nil
+}
+
+func (s *reportService) Update(id uint, rep *report.Report) error {
+	// Get existing report to check slug
+	existing, err := s.repo.GetByID(id)
+	if err != nil {
+		return err
+	}
+
+	rep.ID = id
+	err = s.repo.Update(rep)
+	if err != nil {
+		return err
+	}
+
+	// Invalidate caches
+	cache.DeletePattern("reports:list:*")
+	cache.DeletePattern("reports:total")
+	cache.DeletePattern(fmt.Sprintf("reports:category:*"))
+
+	// Invalidate the specific report cache (old slug)
+	cache.Delete(fmt.Sprintf("report:slug:%s", existing.Slug))
+
+	// Invalidate new slug if it changed
+	if rep.Slug != existing.Slug {
+		cache.Delete(fmt.Sprintf("report:slug:%s", rep.Slug))
+	}
+
+	return nil
+}
+
+func (s *reportService) Delete(id uint) error {
+	// Get the report to invalidate slug-based cache
+	existing, err := s.repo.GetByID(id)
+	if err != nil {
+		return err
+	}
+
+	err = s.repo.Delete(id)
+	if err != nil {
+		return err
+	}
+
+	// Invalidate caches
+	cache.DeletePattern("reports:list:*")
+	cache.DeletePattern("reports:total")
+	cache.DeletePattern(fmt.Sprintf("reports:category:*"))
+	cache.Delete(fmt.Sprintf("report:slug:%s", existing.Slug))
+
+	return nil
+}

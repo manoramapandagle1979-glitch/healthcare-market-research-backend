@@ -1,0 +1,664 @@
+basePath: /
+definitions:
+  category.Category:
+    properties:
+      created_at:
+        type: string
+      description:
+        type: string
+      id:
+        type: integer
+      image_url:
+        type: string
+      is_active:
+        type: boolean
+      name:
+        type: string
+      slug:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  report.ChartMetadata:
+    properties:
+      chart_type:
+        description: bar, line, pie, etc.
+        type: string
+      created_at:
+        type: string
+      data_points:
+        type: integer
+      description:
+        type: string
+      id:
+        type: integer
+      is_active:
+        type: boolean
+      order:
+        type: integer
+      report:
+        $ref: '#/definitions/report.Report'
+      report_id:
+        type: integer
+      title:
+        type: string
+      updated_at:
+        type: string
+    type: object
+  report.Report:
+    properties:
+      category_id:
+        type: integer
+      created_at:
+        type: string
+      currency:
+        type: string
+      description:
+        type: string
+      download_count:
+        type: integer
+      id:
+        type: integer
+      is_featured:
+        type: boolean
+      is_published:
+        type: boolean
+      market_segment_id:
+        type: integer
+      meta_description:
+        type: string
+      meta_keywords:
+        type: string
+      meta_title:
+        type: string
+      page_count:
+        type: integer
+      price:
+        type: number
+      published_at:
+        type: string
+      slug:
+        type: string
+      sub_category_id:
+        type: integer
+      summary:
+        type: string
+      thumbnail_url:
+        type: string
+      title:
+        type: string
+      updated_at:
+        type: string
+      view_count:
+        type: integer
+    type: object
+  report.ReportWithRelations:
+    properties:
+      category_id:
+        type: integer
+      category_name:
+        type: string
+      charts:
+        items:
+          $ref: '#/definitions/report.ChartMetadata'
+        type: array
+      created_at:
+        type: string
+      currency:
+        type: string
+      description:
+        type: string
+      download_count:
+        type: integer
+      id:
+        type: integer
+      is_featured:
+        type: boolean
+      is_published:
+        type: boolean
+      market_segment_id:
+        type: integer
+      market_segment_name:
+        type: string
+      meta_description:
+        type: string
+      meta_keywords:
+        type: string
+      meta_title:
+        type: string
+      page_count:
+        type: integer
+      price:
+        type: number
+      published_at:
+        type: string
+      slug:
+        type: string
+      sub_category_id:
+        type: integer
+      sub_category_name:
+        type: string
+      summary:
+        type: string
+      thumbnail_url:
+        type: string
+      title:
+        type: string
+      updated_at:
+        type: string
+      view_count:
+        type: integer
+    type: object
+  response.Meta:
+    properties:
+      cursor:
+        type: string
+      limit:
+        type: integer
+      page:
+        type: integer
+      total:
+        type: integer
+      total_pages:
+        type: integer
+    type: object
+  response.Response:
+    properties:
+      data: {}
+      error:
+        type: string
+      meta:
+        $ref: '#/definitions/response.Meta'
+      success:
+        type: boolean
+    type: object
+host: localhost:8081
+info:
+  contact:
+    email: support@example.com
+    name: API Support
+  description: RESTful API for healthcare market research reports and categories with
+    caching and pagination support
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+  termsOfService: https://example.com/terms/
+  title: Healthcare Market Research API
+  version: "1.0"
+paths:
+  /api/v1/categories:
+    get:
+      consumes:
+      - application/json
+      description: Get a paginated list of all active healthcare report categories
+      parameters:
+      - description: 'Page number (default: 1, min: 1)'
+        in: query
+        name: page
+        type: integer
+      - description: 'Items per page (default: 20, max: 100)'
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of categories with pagination metadata
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/category.Category'
+                  type: array
+                meta:
+                  $ref: '#/definitions/response.Meta'
+              type: object
+        "500":
+          description: Internal server error
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                error:
+                  type: string
+              type: object
+      summary: Get all categories
+      tags:
+      - Categories
+  /api/v1/categories/{slug}:
+    get:
+      consumes:
+      - application/json
+      description: Get a single healthcare report category by its unique slug
+      parameters:
+      - description: Category slug
+        in: path
+        name: slug
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Category details
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/category.Category'
+              type: object
+        "400":
+          description: Bad request - slug is required
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "404":
+          description: Category not found
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                error:
+                  type: string
+              type: object
+      summary: Get category by slug
+      tags:
+      - Categories
+  /api/v1/categories/{slug}/reports:
+    get:
+      consumes:
+      - application/json
+      description: Get a paginated list of reports belonging to a specific category
+      parameters:
+      - description: Category slug
+        in: path
+        name: slug
+        required: true
+        type: string
+      - description: 'Page number (default: 1, min: 1)'
+        in: query
+        name: page
+        type: integer
+      - description: 'Items per page (default: 20, max: 100)'
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of reports in category with pagination metadata
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/report.ReportWithRelations'
+                  type: array
+                meta:
+                  $ref: '#/definitions/response.Meta'
+              type: object
+        "400":
+          description: Bad request - category slug is required
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "500":
+          description: Internal server error
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                error:
+                  type: string
+              type: object
+      summary: Get reports by category slug
+      tags:
+      - Reports
+  /api/v1/reports:
+    get:
+      consumes:
+      - application/json
+      description: Get a paginated list of all published healthcare market research
+        reports
+      parameters:
+      - description: 'Page number (default: 1, min: 1)'
+        in: query
+        name: page
+        type: integer
+      - description: 'Items per page (default: 20, max: 100)'
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of reports with pagination metadata
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/report.ReportWithRelations'
+                  type: array
+                meta:
+                  $ref: '#/definitions/response.Meta'
+              type: object
+        "500":
+          description: Internal server error
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                error:
+                  type: string
+              type: object
+      summary: Get all reports
+      tags:
+      - Reports
+    post:
+      consumes:
+      - application/json
+      description: Create a new healthcare market research report
+      parameters:
+      - description: Report data
+        in: body
+        name: report
+        required: true
+        schema:
+          $ref: '#/definitions/report.Report'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created report
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/report.Report'
+              type: object
+        "400":
+          description: Bad request - invalid input
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "500":
+          description: Internal server error
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                error:
+                  type: string
+              type: object
+      summary: Create a new report
+      tags:
+      - Reports
+  /api/v1/reports/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete a healthcare market research report by ID
+      parameters:
+      - description: Report ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Report deleted successfully
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  additionalProperties:
+                    type: string
+                  type: object
+              type: object
+        "400":
+          description: Bad request - invalid ID
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "404":
+          description: Report not found
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "500":
+          description: Internal server error
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                error:
+                  type: string
+              type: object
+      summary: Delete a report
+      tags:
+      - Reports
+    put:
+      consumes:
+      - application/json
+      description: Update an existing healthcare market research report by ID
+      parameters:
+      - description: Report ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Updated report data
+        in: body
+        name: report
+        required: true
+        schema:
+          $ref: '#/definitions/report.Report'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Updated report
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/report.Report'
+              type: object
+        "400":
+          description: Bad request - invalid input
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "404":
+          description: Report not found
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "500":
+          description: Internal server error
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                error:
+                  type: string
+              type: object
+      summary: Update a report
+      tags:
+      - Reports
+  /api/v1/reports/{slug}:
+    get:
+      consumes:
+      - application/json
+      description: Get a single healthcare market research report by its unique slug
+      parameters:
+      - description: Report slug
+        in: path
+        name: slug
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Report details with relations
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/report.ReportWithRelations'
+              type: object
+        "400":
+          description: Bad request - slug is required
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "404":
+          description: Report not found
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                error:
+                  type: string
+              type: object
+      summary: Get report by slug
+      tags:
+      - Reports
+  /api/v1/search:
+    get:
+      consumes:
+      - application/json
+      description: Search for healthcare market research reports by query text (searches
+        in title, description, and summary)
+      parameters:
+      - description: Search query text
+        in: query
+        name: q
+        required: true
+        type: string
+      - description: 'Page number (default: 1, min: 1)'
+        in: query
+        name: page
+        type: integer
+      - description: 'Items per page (default: 20, max: 100)'
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Search results with pagination metadata
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/report.ReportWithRelations'
+                  type: array
+                meta:
+                  $ref: '#/definitions/response.Meta'
+              type: object
+        "400":
+          description: Bad request - search query is required
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "500":
+          description: Internal server error
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                error:
+                  type: string
+              type: object
+      summary: Search reports
+      tags:
+      - Reports
+  /health:
+    get:
+      consumes:
+      - application/json
+      description: Check if the API is running and healthy
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: API is healthy
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  additionalProperties:
+                    type: string
+                  type: object
+              type: object
+      summary: Health check
+      tags:
+      - Health
+schemes:
+- http
+- https
+swagger: "2.0"
+tags:
+- description: Health check endpoints
+  name: Health
+- description: Operations related to healthcare market research reports
+  name: Reports
+- description: Operations related to report categories and hierarchies
+  name: Categories
