@@ -1,6 +1,10 @@
 package response
 
-import "github.com/gofiber/fiber/v2"
+import (
+	"fmt"
+
+	"github.com/gofiber/fiber/v2"
+)
 
 type Response struct {
 	Success bool        `json:"success"`
@@ -49,4 +53,17 @@ func NotFound(c *fiber.Ctx, message string) error {
 
 func InternalError(c *fiber.Ctx, message string) error {
 	return Error(c, fiber.StatusInternalServerError, message)
+}
+
+func Unauthorized(c *fiber.Ctx, message string) error {
+	return Error(c, fiber.StatusUnauthorized, message)
+}
+
+func Forbidden(c *fiber.Ctx, message string) error {
+	return Error(c, fiber.StatusForbidden, message)
+}
+
+func TooManyRequests(c *fiber.Ctx, message string, retryAfter int) error {
+	c.Set("Retry-After", fmt.Sprintf("%d", retryAfter))
+	return Error(c, fiber.StatusTooManyRequests, message)
 }

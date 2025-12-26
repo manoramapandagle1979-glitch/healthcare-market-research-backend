@@ -4,6 +4,7 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"time"
 )
 
 type Config struct {
@@ -11,6 +12,8 @@ type Config struct {
 	Port        string
 	Database    DatabaseConfig
 	Redis       RedisConfig
+	Auth        AuthConfig
+	RateLimit   RateLimitConfig
 }
 
 type DatabaseConfig struct {
@@ -30,10 +33,33 @@ type RedisConfig struct {
 	DB       int
 }
 
+type AuthConfig struct {
+	JWTSecret            string
+	AccessTokenExpiry    time.Duration
+	RefreshTokenExpiry   time.Duration
+	Issuer               string
+}
+
+type RateLimitConfig struct {
+	LoginMaxAttempts int
+	LoginWindow      time.Duration
+}
+
 func Load() *Config {
 	redisDB, err := strconv.Atoi(getEnv("REDIS_DB", "0"))
 	if err != nil {
 		redisDB = 0
+	}
+
+	// Parse JWT token expiry durations
+	accessTokenExpiry := parseDuration(getEnv("JWT_ACCESS_TOKEN_EXPIRY", "15m"))
+	refreshTokenExpiry := parseDuration(getEnv("JWT_REFRESH_TOKEN_EXPIRY", "168h"))
+
+	// Parse rate limit window
+	rateLimitWindow := parseDuration(getEnv("RATE_LIMIT_LOGIN_WINDOW", "15m"))
+	rateLimitMaxAttempts, err := strconv.Atoi(getEnv("RATE_LIMIT_LOGIN_MAX_ATTEMPTS", "5"))
+	if err != nil {
+		rateLimitMaxAttempts = 5
 	}
 
 	return &Config{
@@ -54,6 +80,16 @@ func Load() *Config {
 			Password: getEnv("REDIS_PASSWORD", ""),
 			DB:       redisDB,
 		},
+		Auth: AuthConfig{
+			JWTSecret:          getEnv("JWT_SECRET", "your-secret-key-change-in-production"),
+			AccessTokenExpiry:  accessTokenExpiry,
+			RefreshTokenExpiry: refreshTokenExpiry,
+			Issuer:             getEnv("JWT_ISSUER", "healthcare-market-research-api"),
+		},
+		RateLimit: RateLimitConfig{
+			LoginMaxAttempts: rateLimitMaxAttempts,
+			LoginWindow:      rateLimitWindow,
+		},
 	}
 }
 
@@ -66,4 +102,13 @@ func getEnv(key, defaultValue string) string {
 		return defaultValue
 	}
 	return value
+}
+
+func parseDuration(durationStr string) time.Duration {
+	duration, err := time.ParseDuration(durationStr)
+	if err != nil {
+		log.Printf("Invalid duration format '%s', using default 15m", durationStr)
+		return 15 * time.Minute
+	}
+	return duration
 }

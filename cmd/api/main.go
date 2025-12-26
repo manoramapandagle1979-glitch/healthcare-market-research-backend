@@ -41,8 +41,19 @@ import (
 // @BasePath /
 // @schemes http https
 
+// @securityDefinitions.apikey BearerAuth
+// @in header
+// @name Authorization
+// @description Type "Bearer" followed by a space and JWT token.
+
 // @tag.name Health
 // @tag.description Health check endpoints
+
+// @tag.name Authentication
+// @tag.description User authentication and token management
+
+// @tag.name Users
+// @tag.description User management operations
 
 // @tag.name Reports
 // @tag.description Operations related to healthcare market research reports
@@ -82,15 +93,20 @@ func main() {
 	}
 
 	// Initialize repositories
+	userRepo := repository.NewUserRepository(db.DB)
 	categoryRepo := repository.NewCategoryRepository(db.DB)
 	reportRepo := repository.NewReportRepository(db.DB)
 
 	// Initialize services
+	userService := service.NewUserService(userRepo)
+	authService := service.NewAuthService(userRepo, &cfg.Auth)
 	categoryService := service.NewCategoryService(categoryRepo)
 	reportService := service.NewReportService(reportRepo)
 
 	// Initialize handlers
 	healthHandler := handler.NewHealthHandler()
+	authHandler := handler.NewAuthHandler(authService)
+	userHandler := handler.NewUserHandler(userService)
 	categoryHandler := handler.NewCategoryHandler(categoryService)
 	reportHandler := handler.NewReportHandler(reportService)
 
@@ -126,15 +142,29 @@ func main() {
 	// API v1 routes
 	v1 := app.Group("/api/v1")
 
-	// Report routes
-	v1.Get("/reports", reportHandler.GetAll)
-	v1.Post("/reports", reportHandler.Create)
-	v1.Get("/reports/:slug", reportHandler.GetBySlug)
-	v1.Put("/reports/:id", reportHandler.Update)
-	v1.Delete("/reports/:id", reportHandler.Delete)
-	v1.Get("/search", reportHandler.Search)
+	// Auth routes (public with rate limiting)
+	auth := v1.Group("/auth")
+	auth.Post("/login", middleware.RateLimit(cfg.RateLimit.LoginMaxAttempts, cfg.RateLimit.LoginWindow), authHandler.Login)
+	auth.Post("/refresh", authHandler.Refresh)
+	auth.Post("/logout", middleware.RequireAuth(authService), authHandler.Logout)
 
-	// Category routes
+	// User routes (requires authentication)
+	users := v1.Group("/users", middleware.RequireAuth(authService))
+	users.Get("/me", userHandler.GetMe)
+	users.Get("/", middleware.RequireRole("admin"), userHandler.GetAll)
+	users.Post("/", middleware.RequireRole("admin"), userHandler.Create)
+	users.Put("/:id", middleware.RequireRole("admin"), userHandler.Update)
+	users.Delete("/:id", middleware.RequireRole("admin"), userHandler.Delete)
+
+	// Report routes (public read, protected write)
+	v1.Get("/reports", reportHandler.GetAll)
+	v1.Get("/reports/:slug", reportHandler.GetBySlug)
+	v1.Get("/search", reportHandler.Search)
+	v1.Post("/reports", middleware.RequireAuth(authService), middleware.RequireRole("admin", "editor"), reportHandler.Create)
+	v1.Put("/reports/:id", middleware.RequireAuth(authService), middleware.RequireRole("admin", "editor"), reportHandler.Update)
+	v1.Delete("/reports/:id", middleware.RequireAuth(authService), middleware.RequireRole("admin"), reportHandler.Delete)
+
+	// Category routes (public read, protected write)
 	v1.Get("/categories", categoryHandler.GetAll)
 	v1.Get("/categories/:slug", categoryHandler.GetBySlug)
 	v1.Get("/categories/:slug/reports", reportHandler.GetByCategorySlug)

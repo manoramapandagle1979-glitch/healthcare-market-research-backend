@@ -8,6 +8,7 @@ import (
 	"github.com/healthcare-market-research/backend/internal/config"
 	"github.com/healthcare-market-research/backend/internal/domain/category"
 	"github.com/healthcare-market-research/backend/internal/domain/report"
+	"github.com/healthcare-market-research/backend/internal/domain/user"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -71,6 +72,7 @@ func Migrate() error {
 	}
 
 	err := DB.AutoMigrate(
+		&user.User{},
 		&category.Category{},
 		&category.SubCategory{},
 		&category.MarketSegment{},
