@@ -547,7 +547,7 @@ const docTemplate = `{
         },
         "/api/v1/reports": {
             "get": {
-                "description": "Get a paginated list of all published healthcare market research reports",
+                "description": "Get a paginated list of healthcare market research reports with optional filters for status, category, geography, access type, and search",
                 "consumes": [
                     "application/json"
                 ],
@@ -557,7 +557,7 @@ const docTemplate = `{
                 "tags": [
                     "Reports"
                 ],
-                "summary": "Get all reports",
+                "summary": "Get all reports with optional filters",
                 "parameters": [
                     {
                         "type": "integer",
@@ -569,6 +569,36 @@ const docTemplate = `{
                         "type": "integer",
                         "description": "Items per page (default: 20, max: 100)",
                         "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by status (draft or published)",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by category slug",
+                        "name": "category",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by geography (comma-separated, e.g., 'North America,Europe')",
+                        "name": "geography",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Filter by access type (free or paid)",
+                        "name": "accessType",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Search in title, summary, and description",
+                        "name": "search",
                         "in": "query"
                     }
                 ],
@@ -586,7 +616,7 @@ const docTemplate = `{
                                         "data": {
                                             "type": "array",
                                             "items": {
-                                                "$ref": "#/definitions/report.ReportWithRelations"
+                                                "$ref": "#/definitions/report.Report"
                                             }
                                         },
                                         "meta": {
@@ -750,6 +780,24 @@ const docTemplate = `{
                     },
                     "400": {
                         "description": "Bad request - invalid input",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
                         "schema": {
                             "allOf": [
                                 {
@@ -1692,13 +1740,78 @@ const docTemplate = `{
                 }
             }
         },
+        "report.FAQ": {
+            "type": "object",
+            "properties": {
+                "answer": {
+                    "type": "string"
+                },
+                "question": {
+                    "type": "string"
+                }
+            }
+        },
+        "report.KeyPlayer": {
+            "type": "object",
+            "properties": {
+                "description": {
+                    "type": "string"
+                },
+                "marketShare": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "rank": {
+                    "type": "integer"
+                }
+            }
+        },
+        "report.MarketMetrics": {
+            "type": "object",
+            "properties": {
+                "cagr": {
+                    "type": "string"
+                },
+                "cagrEndYear": {
+                    "type": "integer"
+                },
+                "cagrStartYear": {
+                    "type": "integer"
+                },
+                "currentRevenue": {
+                    "type": "string"
+                },
+                "currentYear": {
+                    "type": "integer"
+                },
+                "forecastRevenue": {
+                    "type": "string"
+                },
+                "forecastYear": {
+                    "type": "integer"
+                }
+            }
+        },
         "report.Report": {
             "type": "object",
             "properties": {
+                "access_type": {
+                    "type": "string"
+                },
+                "author_ids": {
+                    "description": "Authors (JSON array of user IDs)",
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
                 "category_id": {
                     "type": "integer"
                 },
                 "created_at": {
+                    "description": "Timestamps",
                     "type": "string"
                 },
                 "currency": {
@@ -1707,8 +1820,30 @@ const docTemplate = `{
                 "description": {
                     "type": "string"
                 },
+                "discounted_price": {
+                    "type": "number"
+                },
                 "download_count": {
                     "type": "integer"
+                },
+                "faqs": {
+                    "description": "FAQs",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/report.FAQ"
+                    }
+                },
+                "formats": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "geography": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "id": {
                     "type": "integer"
@@ -1716,8 +1851,19 @@ const docTemplate = `{
                 "is_featured": {
                     "type": "boolean"
                 },
-                "is_published": {
-                    "type": "boolean"
+                "key_players": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/report.KeyPlayer"
+                    }
+                },
+                "market_metrics": {
+                    "description": "Market data",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/report.MarketMetrics"
+                        }
+                    ]
                 },
                 "market_segment_id": {
                     "type": "integer"
@@ -1729,18 +1875,42 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "meta_title": {
+                    "description": "Legacy fields (kept for backward compatibility)",
                     "type": "string"
                 },
+                "metadata": {
+                    "description": "SEO Metadata",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/report.ReportMetadata"
+                        }
+                    ]
+                },
                 "page_count": {
+                    "description": "Report details",
                     "type": "integer"
                 },
                 "price": {
+                    "description": "Pricing",
                     "type": "number"
                 },
-                "published_at": {
+                "publish_date": {
+                    "description": "Publishing",
                     "type": "string"
                 },
+                "sections": {
+                    "description": "Content sections",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/report.ReportSections"
+                        }
+                    ]
+                },
                 "slug": {
+                    "type": "string"
+                },
+                "status": {
+                    "description": "Status and access",
                     "type": "string"
                 },
                 "sub_category_id": {
@@ -1759,6 +1929,119 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "view_count": {
+                    "description": "Statistics",
+                    "type": "integer"
+                }
+            }
+        },
+        "report.ReportMetadata": {
+            "type": "object",
+            "properties": {
+                "canonicalUrl": {
+                    "type": "string"
+                },
+                "keywords": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "metaDescription": {
+                    "type": "string"
+                },
+                "metaTitle": {
+                    "type": "string"
+                },
+                "ogDescription": {
+                    "type": "string"
+                },
+                "ogImage": {
+                    "type": "string"
+                },
+                "ogTitle": {
+                    "type": "string"
+                },
+                "ogType": {
+                    "type": "string"
+                },
+                "robotsDirective": {
+                    "type": "string"
+                },
+                "schemaJson": {
+                    "type": "string"
+                },
+                "twitterCard": {
+                    "type": "string"
+                }
+            }
+        },
+        "report.ReportSections": {
+            "type": "object",
+            "properties": {
+                "competitive": {
+                    "type": "string"
+                },
+                "conclusion": {
+                    "type": "string"
+                },
+                "executiveSummary": {
+                    "type": "string"
+                },
+                "keyFindings": {
+                    "type": "string"
+                },
+                "keyPlayers": {
+                    "type": "string"
+                },
+                "marketDetails": {
+                    "type": "string"
+                },
+                "marketOverview": {
+                    "type": "string"
+                },
+                "marketSize": {
+                    "type": "string"
+                },
+                "regional": {
+                    "type": "string"
+                },
+                "tableOfContents": {
+                    "type": "string"
+                },
+                "trends": {
+                    "type": "string"
+                }
+            }
+        },
+        "report.ReportVersion": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "metadata": {
+                    "$ref": "#/definitions/report.ReportMetadata"
+                },
+                "published_at": {
+                    "type": "string"
+                },
+                "published_by": {
+                    "description": "User ID who published",
+                    "type": "integer"
+                },
+                "report": {
+                    "$ref": "#/definitions/report.Report"
+                },
+                "report_id": {
+                    "type": "integer"
+                },
+                "sections": {
+                    "$ref": "#/definitions/report.ReportSections"
+                },
+                "version_number": {
                     "type": "integer"
                 }
             }
@@ -1766,6 +2049,19 @@ const docTemplate = `{
         "report.ReportWithRelations": {
             "type": "object",
             "properties": {
+                "access_type": {
+                    "type": "string"
+                },
+                "author": {
+                    "$ref": "#/definitions/report.UserReference"
+                },
+                "author_ids": {
+                    "description": "Authors (JSON array of user IDs)",
+                    "type": "array",
+                    "items": {
+                        "type": "integer"
+                    }
+                },
                 "category_id": {
                     "type": "integer"
                 },
@@ -1779,6 +2075,7 @@ const docTemplate = `{
                     }
                 },
                 "created_at": {
+                    "description": "Timestamps",
                     "type": "string"
                 },
                 "currency": {
@@ -1787,8 +2084,30 @@ const docTemplate = `{
                 "description": {
                     "type": "string"
                 },
+                "discounted_price": {
+                    "type": "number"
+                },
                 "download_count": {
                     "type": "integer"
+                },
+                "faqs": {
+                    "description": "FAQs",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/report.FAQ"
+                    }
+                },
+                "formats": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "geography": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 },
                 "id": {
                     "type": "integer"
@@ -1796,8 +2115,19 @@ const docTemplate = `{
                 "is_featured": {
                     "type": "boolean"
                 },
-                "is_published": {
-                    "type": "boolean"
+                "key_players": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/report.KeyPlayer"
+                    }
+                },
+                "market_metrics": {
+                    "description": "Market data",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/report.MarketMetrics"
+                        }
+                    ]
                 },
                 "market_segment_id": {
                     "type": "integer"
@@ -1812,18 +2142,42 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "meta_title": {
+                    "description": "Legacy fields (kept for backward compatibility)",
                     "type": "string"
                 },
+                "metadata": {
+                    "description": "SEO Metadata",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/report.ReportMetadata"
+                        }
+                    ]
+                },
                 "page_count": {
+                    "description": "Report details",
                     "type": "integer"
                 },
                 "price": {
+                    "description": "Pricing",
                     "type": "number"
                 },
-                "published_at": {
+                "publish_date": {
+                    "description": "Publishing",
                     "type": "string"
                 },
+                "sections": {
+                    "description": "Content sections",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/report.ReportSections"
+                        }
+                    ]
+                },
                 "slug": {
+                    "type": "string"
+                },
+                "status": {
+                    "description": "Status and access",
                     "type": "string"
                 },
                 "sub_category_id": {
@@ -1844,8 +2198,29 @@ const docTemplate = `{
                 "updated_at": {
                     "type": "string"
                 },
+                "versions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/report.ReportVersion"
+                    }
+                },
                 "view_count": {
+                    "description": "Statistics",
                     "type": "integer"
+                }
+            }
+        },
+        "report.UserReference": {
+            "type": "object",
+            "properties": {
+                "email": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "integer"
+                },
+                "name": {
+                    "type": "string"
                 }
             }
         },

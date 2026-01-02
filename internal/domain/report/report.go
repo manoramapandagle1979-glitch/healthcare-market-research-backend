@@ -1,32 +1,249 @@
 package report
 
 import (
+	"database/sql/driver"
+	"encoding/json"
+	"errors"
 	"time"
 )
 
+// MarketMetrics contains market size and forecast data
+type MarketMetrics struct {
+	CurrentRevenue   string `json:"currentRevenue,omitempty"`
+	CurrentYear      int    `json:"currentYear,omitempty"`
+	ForecastRevenue  string `json:"forecastRevenue,omitempty"`
+	ForecastYear     int    `json:"forecastYear,omitempty"`
+	CAGR             string `json:"cagr,omitempty"`
+	CAGRStartYear    int    `json:"cagrStartYear,omitempty"`
+	CAGREndYear      int    `json:"cagrEndYear,omitempty"`
+}
+
+// Value implements the driver.Valuer interface for GORM
+func (m MarketMetrics) Value() (driver.Value, error) {
+	return json.Marshal(m)
+}
+
+// Scan implements the sql.Scanner interface for GORM
+func (m *MarketMetrics) Scan(value interface{}) error {
+	if value == nil {
+		return nil
+	}
+	bytes, ok := value.([]byte)
+	if !ok {
+		return errors.New("type assertion to []byte failed")
+	}
+	return json.Unmarshal(bytes, &m)
+}
+
+// KeyPlayer represents a market competitor
+type KeyPlayer struct {
+	Name        string `json:"name"`
+	MarketShare string `json:"marketShare,omitempty"`
+	Rank        int    `json:"rank,omitempty"`
+	Description string `json:"description,omitempty"`
+}
+
+// KeyPlayers is a slice of KeyPlayer with JSON marshaling
+type KeyPlayers []KeyPlayer
+
+func (k KeyPlayers) Value() (driver.Value, error) {
+	return json.Marshal(k)
+}
+
+func (k *KeyPlayers) Scan(value interface{}) error {
+	if value == nil {
+		return nil
+	}
+	bytes, ok := value.([]byte)
+	if !ok {
+		return errors.New("type assertion to []byte failed")
+	}
+	return json.Unmarshal(bytes, &k)
+}
+
+// ReportSections contains all report content sections
+type ReportSections struct {
+	ExecutiveSummary  string `json:"executiveSummary"`
+	MarketOverview    string `json:"marketOverview"`
+	MarketSize        string `json:"marketSize"`
+	Competitive       string `json:"competitive"`
+	KeyPlayers        string `json:"keyPlayers"`
+	Regional          string `json:"regional"`
+	Trends            string `json:"trends"`
+	Conclusion        string `json:"conclusion"`
+	MarketDetails     string `json:"marketDetails"`
+	KeyFindings       string `json:"keyFindings"`
+	TableOfContents   string `json:"tableOfContents"`
+}
+
+func (s ReportSections) Value() (driver.Value, error) {
+	return json.Marshal(s)
+}
+
+func (s *ReportSections) Scan(value interface{}) error {
+	if value == nil {
+		return nil
+	}
+	bytes, ok := value.([]byte)
+	if !ok {
+		return errors.New("type assertion to []byte failed")
+	}
+	return json.Unmarshal(bytes, &s)
+}
+
+// FAQ represents a frequently asked question
+type FAQ struct {
+	Question string `json:"question"`
+	Answer   string `json:"answer"`
+}
+
+type FAQs []FAQ
+
+func (f FAQs) Value() (driver.Value, error) {
+	return json.Marshal(f)
+}
+
+func (f *FAQs) Scan(value interface{}) error {
+	if value == nil {
+		return nil
+	}
+	bytes, ok := value.([]byte)
+	if !ok {
+		return errors.New("type assertion to []byte failed")
+	}
+	return json.Unmarshal(bytes, &f)
+}
+
+// ReportMetadata contains SEO and social media metadata
+type ReportMetadata struct {
+	MetaTitle        string `json:"metaTitle,omitempty"`
+	MetaDescription  string `json:"metaDescription,omitempty"`
+	Keywords         []string `json:"keywords,omitempty"`
+	CanonicalURL     string `json:"canonicalUrl,omitempty"`
+	OGTitle          string `json:"ogTitle,omitempty"`
+	OGDescription    string `json:"ogDescription,omitempty"`
+	OGImage          string `json:"ogImage,omitempty"`
+	OGType           string `json:"ogType,omitempty"`
+	TwitterCard      string `json:"twitterCard,omitempty"`
+	SchemaJSON       string `json:"schemaJson,omitempty"`
+	RobotsDirective  string `json:"robotsDirective,omitempty"`
+}
+
+func (m ReportMetadata) Value() (driver.Value, error) {
+	return json.Marshal(m)
+}
+
+func (m *ReportMetadata) Scan(value interface{}) error {
+	if value == nil {
+		return nil
+	}
+	bytes, ok := value.([]byte)
+	if !ok {
+		return errors.New("type assertion to []byte failed")
+	}
+	return json.Unmarshal(bytes, &m)
+}
+
+// StringSlice is a custom type for string arrays
+type StringSlice []string
+
+func (s StringSlice) Value() (driver.Value, error) {
+	return json.Marshal(s)
+}
+
+func (s *StringSlice) Scan(value interface{}) error {
+	if value == nil {
+		return nil
+	}
+	bytes, ok := value.([]byte)
+	if !ok {
+		return errors.New("type assertion to []byte failed")
+	}
+	return json.Unmarshal(bytes, &s)
+}
+
+// UintSlice is a custom type for uint arrays
+type UintSlice []uint
+
+func (u UintSlice) Value() (driver.Value, error) {
+	return json.Marshal(u)
+}
+
+func (u *UintSlice) Scan(value interface{}) error {
+	if value == nil {
+		return nil
+	}
+	bytes, ok := value.([]byte)
+	if !ok {
+		return errors.New("type assertion to []byte failed")
+	}
+	return json.Unmarshal(bytes, &u)
+}
+
+// UserReference represents minimal user info for author field
+type UserReference struct {
+	ID    uint   `json:"id"`
+	Name  string `json:"name"`
+	Email string `json:"email"`
+}
+
 type Report struct {
-	ID              uint       `json:"id" gorm:"primaryKey"`
-	CategoryID      uint       `json:"category_id" gorm:"index;not null"`
-	SubCategoryID   *uint      `json:"sub_category_id,omitempty" gorm:"index"`
-	MarketSegmentID *uint      `json:"market_segment_id,omitempty" gorm:"index"`
-	Title           string     `json:"title" gorm:"type:varchar(500);not null"`
-	Slug            string     `json:"slug" gorm:"type:varchar(500);uniqueIndex;not null"`
-	Description     string     `json:"description" gorm:"type:text"`
-	Summary         string     `json:"summary" gorm:"type:text"`
-	ThumbnailURL    string     `json:"thumbnail_url" gorm:"type:varchar(500)"`
-	Price           float64    `json:"price" gorm:"type:decimal(10,2)"`
-	Currency        string     `json:"currency" gorm:"type:varchar(3);default:'USD'"`
-	PageCount       int        `json:"page_count" gorm:"default:0"`
-	PublishedAt     *time.Time `json:"published_at" gorm:"index"`
-	IsPublished     bool       `json:"is_published" gorm:"default:false;index"`
-	IsFeatured      bool       `json:"is_featured" gorm:"default:false"`
-	ViewCount       int        `json:"view_count" gorm:"default:0"`
-	DownloadCount   int        `json:"download_count" gorm:"default:0"`
-	MetaTitle       string     `json:"meta_title" gorm:"type:varchar(255)"`
-	MetaDescription string     `json:"meta_description" gorm:"type:varchar(500)"`
-	MetaKeywords    string     `json:"meta_keywords" gorm:"type:varchar(500)"`
-	CreatedAt       time.Time  `json:"created_at"`
-	UpdatedAt       time.Time  `json:"updated_at"`
+	ID              uint            `json:"id" gorm:"primaryKey"`
+	CategoryID      uint            `json:"category_id" gorm:"index;not null"`
+	SubCategoryID   *uint           `json:"sub_category_id,omitempty" gorm:"index"`
+	MarketSegmentID *uint           `json:"market_segment_id,omitempty" gorm:"index"`
+	Title           string          `json:"title" gorm:"type:varchar(500);not null"`
+	Slug            string          `json:"slug" gorm:"type:varchar(500);uniqueIndex;not null"`
+	Description     string          `json:"description" gorm:"type:text"`
+	Summary         string          `json:"summary" gorm:"type:text;not null"`
+	ThumbnailURL    string          `json:"thumbnail_url" gorm:"type:varchar(500)"`
+
+	// Pricing
+	Price            float64        `json:"price" gorm:"type:decimal(10,2);default:0"`
+	DiscountedPrice  float64        `json:"discounted_price" gorm:"type:decimal(10,2);default:0"`
+	Currency         string         `json:"currency" gorm:"type:varchar(3);default:'USD'"`
+
+	// Report details
+	PageCount       int             `json:"page_count" gorm:"default:0"`
+	Formats         StringSlice     `json:"formats,omitempty" gorm:"type:jsonb"`
+	Geography       StringSlice     `json:"geography" gorm:"type:jsonb;not null"`
+
+	// Status and access
+	Status          string          `json:"status" gorm:"type:varchar(20);default:'draft';index"`
+	AccessType      string          `json:"access_type" gorm:"type:varchar(20);default:'paid'"`
+	IsFeatured      bool            `json:"is_featured" gorm:"default:false"`
+
+	// Publishing
+	PublishDate     *time.Time      `json:"publish_date" gorm:"index"`
+
+	// Statistics
+	ViewCount       int             `json:"view_count" gorm:"default:0"`
+	DownloadCount   int             `json:"download_count" gorm:"default:0"`
+
+	// Authors (JSON array of user IDs)
+	AuthorIDs       UintSlice       `json:"author_ids,omitempty" gorm:"type:jsonb"`
+
+	// Market data
+	MarketMetrics   *MarketMetrics  `json:"market_metrics,omitempty" gorm:"type:jsonb"`
+	KeyPlayers      KeyPlayers      `json:"key_players,omitempty" gorm:"type:jsonb"`
+
+	// Content sections
+	Sections        ReportSections  `json:"sections" gorm:"type:jsonb;not null"`
+
+	// FAQs
+	FAQs            FAQs            `json:"faqs,omitempty" gorm:"type:jsonb"`
+
+	// SEO Metadata
+	Metadata        ReportMetadata  `json:"metadata" gorm:"type:jsonb"`
+
+	// Legacy fields (kept for backward compatibility)
+	MetaTitle       string          `json:"meta_title,omitempty" gorm:"type:varchar(255)"`
+	MetaDescription string          `json:"meta_description,omitempty" gorm:"type:varchar(500)"`
+	MetaKeywords    string          `json:"meta_keywords,omitempty" gorm:"type:varchar(500)"`
+
+	// Timestamps
+	CreatedAt       time.Time       `json:"created_at"`
+	UpdatedAt       time.Time       `json:"updated_at"`
 }
 
 type ChartMetadata struct {
@@ -43,10 +260,25 @@ type ChartMetadata struct {
 	Report      *Report   `json:"report,omitempty" gorm:"foreignKey:ReportID"`
 }
 
+// ReportVersion stores historical versions of reports
+type ReportVersion struct {
+	ID              uint            `json:"id" gorm:"primaryKey"`
+	ReportID        uint            `json:"report_id" gorm:"index;not null"`
+	VersionNumber   int             `json:"version_number" gorm:"not null"`
+	PublishedBy     uint            `json:"published_by" gorm:"not null"` // User ID who published
+	PublishedAt     time.Time       `json:"published_at" gorm:"not null"`
+	Sections        ReportSections  `json:"sections" gorm:"type:jsonb;not null"`
+	Metadata        ReportMetadata  `json:"metadata" gorm:"type:jsonb"`
+	CreatedAt       time.Time       `json:"created_at"`
+	Report          *Report         `json:"report,omitempty" gorm:"foreignKey:ReportID"`
+}
+
 type ReportWithRelations struct {
 	Report
 	CategoryName      string           `json:"category_name,omitempty"`
 	SubCategoryName   string           `json:"sub_category_name,omitempty"`
 	MarketSegmentName string           `json:"market_segment_name,omitempty"`
 	Charts            []ChartMetadata  `json:"charts,omitempty"`
+	Author            *UserReference   `json:"author,omitempty"`
+	Versions          []ReportVersion  `json:"versions,omitempty"`
 }

@@ -3,9 +3,12 @@ package handler
 import (
 	"math"
 	"strconv"
+	"strings"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/healthcare-market-research/backend/internal/domain/report"
+	"github.com/healthcare-market-research/backend/internal/domain/user"
+	"github.com/healthcare-market-research/backend/internal/repository"
 	"github.com/healthcare-market-research/backend/internal/service"
 	"github.com/healthcare-market-research/backend/pkg/response"
 )
@@ -19,14 +22,19 @@ func NewReportHandler(service service.ReportService) *ReportHandler {
 }
 
 // GetAll godoc
-// @Summary Get all reports
-// @Description Get a paginated list of all published healthcare market research reports
+// @Summary Get all reports with optional filters
+// @Description Get a paginated list of healthcare market research reports with optional filters for status, category, geography, access type, and search
 // @Tags Reports
 // @Accept json
 // @Produce json
 // @Param page query int false "Page number (default: 1, min: 1)"
 // @Param limit query int false "Items per page (default: 20, max: 100)"
-// @Success 200 {object} response.Response{data=[]report.ReportWithRelations,meta=response.Meta} "List of reports with pagination metadata"
+// @Param status query string false "Filter by status (draft or published)"
+// @Param category query string false "Filter by category slug"
+// @Param geography query string false "Filter by geography (comma-separated, e.g., 'North America,Europe')"
+// @Param accessType query string false "Filter by access type (free or paid)"
+// @Param search query string false "Search in title, summary, and description"
+// @Success 200 {object} response.Response{data=[]report.Report,meta=response.Meta} "List of reports with pagination metadata"
 // @Failure 500 {object} response.Response{error=string} "Internal server error"
 // @Router /api/v1/reports [get]
 func (h *ReportHandler) GetAll(c *fiber.Ctx) error {
@@ -40,7 +48,45 @@ func (h *ReportHandler) GetAll(c *fiber.Ctx) error {
 		limit = 20
 	}
 
-	reports, total, err := h.service.GetAll(page, limit)
+	// Check if any filters are provided
+	status := c.Query("status")
+	category := c.Query("category")
+	geographyParam := c.Query("geography")
+	accessType := c.Query("accessType")
+	search := c.Query("search")
+
+	var reports []report.Report
+	var total int64
+	var err error
+
+	// If any filters are provided, use the filtered endpoint
+	if status != "" || category != "" || geographyParam != "" || accessType != "" || search != "" {
+		// Parse geography into array
+		var geography []string
+		if geographyParam != "" {
+			geography = strings.Split(geographyParam, ",")
+			// Trim whitespace from each geography
+			for i := range geography {
+				geography[i] = strings.TrimSpace(geography[i])
+			}
+		}
+
+		filters := repository.ReportFilters{
+			Status:     status,
+			Category:   category,
+			Geography:  geography,
+			AccessType: accessType,
+			Search:     search,
+			Page:       page,
+			Limit:      limit,
+		}
+
+		reports, total, err = h.service.GetAllWithFilters(filters)
+	} else {
+		// No filters, use the default GetAll
+		reports, total, err = h.service.GetAll(page, limit)
+	}
+
 	if err != nil {
 		return response.InternalError(c, "Failed to fetch reports")
 	}
@@ -191,9 +237,29 @@ func (h *ReportHandler) Create(c *fiber.Ctx) error {
 		return response.BadRequest(c, "Invalid request body")
 	}
 
-	// Validate required fields
-	if req.Title == "" || req.Slug == "" || req.CategoryID == 0 {
-		return response.BadRequest(c, "Title, slug, and category_id are required")
+	// Validate required fields based on frontend expectations
+	if req.Title == "" {
+		return response.BadRequest(c, "Title is required (minimum 10 characters)")
+	}
+	if req.Slug == "" {
+		return response.BadRequest(c, "Slug is required")
+	}
+	if req.CategoryID == 0 {
+		return response.BadRequest(c, "Category ID is required")
+	}
+	if req.Summary == "" {
+		return response.BadRequest(c, "Summary is required (minimum 50 characters)")
+	}
+	if len(req.Geography) == 0 {
+		return response.BadRequest(c, "At least one geography is required")
+	}
+
+	// Set default values if not provided
+	if req.Status == "" {
+		req.Status = "draft"
+	}
+	if req.AccessType == "" {
+		req.AccessType = "paid"
 	}
 
 	if err := h.service.Create(&req); err != nil {
@@ -216,6 +282,7 @@ func (h *ReportHandler) Create(c *fiber.Ctx) error {
 // @Param report body report.Report true "Updated report data"
 // @Success 200 {object} response.Response{data=report.Report} "Updated report"
 // @Failure 400 {object} response.Response{error=string} "Bad request - invalid input"
+// @Failure 401 {object} response.Response{error=string} "Unauthorized"
 // @Failure 404 {object} response.Response{error=string} "Report not found"
 // @Failure 500 {object} response.Response{error=string} "Internal server error"
 // @Router /api/v1/reports/{id} [put]
@@ -225,17 +292,40 @@ func (h *ReportHandler) Update(c *fiber.Ctx) error {
 		return response.BadRequest(c, "Invalid report ID")
 	}
 
+	// Get user ID from context (set by auth middleware)
+	userCtx := c.Locals("user")
+	if userCtx == nil {
+		return response.Unauthorized(c, "User not authenticated")
+	}
+	currentUser, ok := userCtx.(*user.User)
+	if !ok {
+		return response.Unauthorized(c, "Invalid user context")
+	}
+
 	var req report.Report
 	if err := c.BodyParser(&req); err != nil {
 		return response.BadRequest(c, "Invalid request body")
 	}
 
 	// Validate required fields
-	if req.Title == "" || req.Slug == "" || req.CategoryID == 0 {
-		return response.BadRequest(c, "Title, slug, and category_id are required")
+	if req.Title == "" {
+		return response.BadRequest(c, "Title is required (minimum 10 characters)")
+	}
+	if req.Slug == "" {
+		return response.BadRequest(c, "Slug is required")
+	}
+	if req.CategoryID == 0 {
+		return response.BadRequest(c, "Category ID is required")
+	}
+	if req.Summary == "" {
+		return response.BadRequest(c, "Summary is required (minimum 50 characters)")
+	}
+	if len(req.Geography) == 0 {
+		return response.BadRequest(c, "At least one geography is required")
 	}
 
-	if err := h.service.Update(uint(id), &req); err != nil {
+	// Pass user ID to service for version history
+	if err := h.service.Update(uint(id), &req, currentUser.ID); err != nil {
 		if err.Error() == "record not found" {
 			return response.NotFound(c, "Report not found")
 		}

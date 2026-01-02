@@ -1,22 +1,39 @@
 package repository
 
 import (
-	"time"
+	"fmt"
+	"strings"
 
 	"github.com/healthcare-market-research/backend/internal/domain/report"
 	"gorm.io/gorm"
 )
 
+// ReportFilters contains all possible filter options for reports
+type ReportFilters struct {
+	Status      string   // 'draft' or 'published'
+	Category    string   // Category slug
+	Geography   []string // Array of geography strings
+	Search      string   // Full-text search query
+	AccessType  string   // 'free' or 'paid'
+	Page        int
+	Limit       int
+}
+
 type ReportRepository interface {
 	GetAll(page, limit int) ([]report.Report, int64, error)
+	GetAllWithFilters(filters ReportFilters) ([]report.Report, int64, error)
 	GetBySlug(slug string) (*report.ReportWithRelations, error)
+	GetByID(id uint) (*report.Report, error)
 	GetByCategorySlug(categorySlug string, page, limit int) ([]report.Report, int64, error)
 	Search(query string, page, limit int) ([]report.Report, int64, error)
 	GetChartsByReportID(reportID uint) ([]report.ChartMetadata, error)
 	Create(report *report.Report) error
 	Update(report *report.Report) error
 	Delete(id uint) error
-	GetByID(id uint) (*report.Report, error)
+	// Version history methods
+	CreateVersion(version *report.ReportVersion) error
+	GetVersionsByReportID(reportID uint) ([]report.ReportVersion, error)
+	GetLatestVersionNumber(reportID uint) (int, error)
 }
 
 type reportRepository struct {
@@ -33,21 +50,17 @@ func (r *reportRepository) GetAll(page, limit int) ([]report.Report, int64, erro
 
 	offset := (page - 1) * limit
 
-	// Use raw SQL for better performance
-	countSQL := "SELECT COUNT(*) FROM reports WHERE is_published = true"
+	// Default: only show published reports
+	countSQL := "SELECT COUNT(*) FROM reports WHERE status = 'published'"
 	if err := r.db.Raw(countSQL).Scan(&total).Error; err != nil {
 		return nil, 0, err
 	}
 
-	// Raw SQL for fetching reports
 	querySQL := `
-		SELECT id, title, slug, description, summary, thumbnail_url, price, currency,
-		       page_count, category_id, sub_category_id, market_segment_id,
-		       is_published, is_featured, view_count, download_count, published_at,
-		       meta_title, meta_description, meta_keywords, created_at, updated_at
+		SELECT *
 		FROM reports
-		WHERE is_published = true
-		ORDER BY published_at DESC
+		WHERE status = 'published'
+		ORDER BY COALESCE(publish_date, updated_at) DESC
 		LIMIT ? OFFSET ?
 	`
 
@@ -56,101 +69,120 @@ func (r *reportRepository) GetAll(page, limit int) ([]report.Report, int64, erro
 	return reports, total, err
 }
 
-func (r *reportRepository) GetBySlug(slug string) (*report.ReportWithRelations, error) {
-	// Use a single optimized query with JOINs to avoid N+1 queries
-	type QueryResult struct {
-		// Report fields
-		ID               uint
-		CategoryID       uint
-		SubCategoryID    *uint
-		MarketSegmentID  *uint
-		Title            string
-		Slug             string
-		Description      string
-		Summary          string
-		ThumbnailURL     string
-		Price            float64
-		Currency         string
-		PageCount        int
-		PublishedAt      *time.Time
-		IsPublished      bool
-		IsFeatured       bool
-		ViewCount        int
-		DownloadCount    int
-		MetaTitle        string
-		MetaDescription  string
-		MetaKeywords     string
-		CreatedAt        time.Time
-		UpdatedAt        time.Time
-		// Related names
-		CategoryName      string
-		SubCategoryName   string
-		MarketSegmentName string
+func (r *reportRepository) GetAllWithFilters(filters ReportFilters) ([]report.Report, int64, error) {
+	var reports []report.Report
+	var total int64
+
+	offset := (filters.Page - 1) * filters.Limit
+
+	// Build WHERE clause dynamically
+	var conditions []string
+	var args []interface{}
+	var countArgs []interface{}
+
+	// Status filter
+	if filters.Status != "" {
+		conditions = append(conditions, "r.status = ?")
+		args = append(args, filters.Status)
+		countArgs = append(countArgs, filters.Status)
+	} else {
+		// Default to published only for public API
+		conditions = append(conditions, "r.status = 'published'")
 	}
 
-	var qr QueryResult
+	// Category filter
+	if filters.Category != "" {
+		conditions = append(conditions, "c.slug = ?")
+		args = append(args, filters.Category)
+		countArgs = append(countArgs, filters.Category)
+	}
 
-	// Single query with LEFT JOINs to get all related data
-	querySQL := `
-		SELECT
-			r.id, r.category_id, r.sub_category_id, r.market_segment_id,
-			r.title, r.slug, r.description, r.summary, r.thumbnail_url,
-			r.price, r.currency, r.page_count, r.published_at,
-			r.is_published, r.is_featured, r.view_count, r.download_count,
-			r.meta_title, r.meta_description, r.meta_keywords,
-			r.created_at, r.updated_at,
-			c.name as category_name,
-			COALESCE(sc.name, '') as sub_category_name,
-			COALESCE(ms.name, '') as market_segment_name
+	// Geography filter - check if any of the provided geographies are in the report's geography JSON array
+	if len(filters.Geography) > 0 {
+		geographyConditions := make([]string, len(filters.Geography))
+		for i, geo := range filters.Geography {
+			geographyConditions[i] = "r.geography::jsonb ? ?"
+			args = append(args, geo)
+			countArgs = append(countArgs, geo)
+		}
+		conditions = append(conditions, fmt.Sprintf("(%s)", strings.Join(geographyConditions, " OR ")))
+	}
+
+	// Access type filter
+	if filters.AccessType != "" {
+		conditions = append(conditions, "r.access_type = ?")
+		args = append(args, filters.AccessType)
+		countArgs = append(countArgs, filters.AccessType)
+	}
+
+	// Search filter
+	if filters.Search != "" {
+		searchPattern := "%" + filters.Search + "%"
+		conditions = append(conditions, "(r.title ILIKE ? OR r.summary ILIKE ? OR r.description ILIKE ?)")
+		args = append(args, searchPattern, searchPattern, searchPattern)
+		countArgs = append(countArgs, searchPattern, searchPattern, searchPattern)
+	}
+
+	whereClause := strings.Join(conditions, " AND ")
+
+	// Count query
+	countSQL := fmt.Sprintf(`
+		SELECT COUNT(*)
 		FROM reports r
-		INNER JOIN categories c ON r.category_id = c.id AND c.is_active = true
-		LEFT JOIN sub_categories sc ON r.sub_category_id = sc.id AND sc.is_active = true
-		LEFT JOIN market_segments ms ON r.market_segment_id = ms.id AND ms.is_active = true
-		WHERE r.slug = ? AND r.is_published = true
-		LIMIT 1
-	`
+		LEFT JOIN categories c ON r.category_id = c.id
+		WHERE %s
+	`, whereClause)
 
-	err := r.db.Raw(querySQL, slug).Scan(&qr).Error
+	if err := r.db.Raw(countSQL, countArgs...).Scan(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	// Fetch query
+	querySQL := fmt.Sprintf(`
+		SELECT r.*
+		FROM reports r
+		LEFT JOIN categories c ON r.category_id = c.id
+		WHERE %s
+		ORDER BY COALESCE(r.publish_date, r.updated_at) DESC
+		LIMIT ? OFFSET ?
+	`, whereClause)
+
+	args = append(args, filters.Limit, offset)
+	err := r.db.Raw(querySQL, args...).Scan(&reports).Error
+
+	return reports, total, err
+}
+
+func (r *reportRepository) GetBySlug(slug string) (*report.ReportWithRelations, error) {
+	var result report.ReportWithRelations
+
+	// Fetch the main report with all JSONB fields using GORM
+	err := r.db.Table("reports").
+		Select(`
+			reports.*,
+			categories.name as category_name,
+			COALESCE(sub_categories.name, '') as sub_category_name,
+			COALESCE(market_segments.name, '') as market_segment_name
+		`).
+		Joins("INNER JOIN categories ON reports.category_id = categories.id AND categories.is_active = true").
+		Joins("LEFT JOIN sub_categories ON reports.sub_category_id = sub_categories.id AND sub_categories.is_active = true").
+		Joins("LEFT JOIN market_segments ON reports.market_segment_id = market_segments.id AND market_segments.is_active = true").
+		Where("reports.slug = ? AND reports.status = 'published'", slug).
+		First(&result).Error
+
 	if err != nil {
 		return nil, err
 	}
 
-	// Build the result
-	result := &report.ReportWithRelations{
-		Report: report.Report{
-			ID:              qr.ID,
-			CategoryID:      qr.CategoryID,
-			SubCategoryID:   qr.SubCategoryID,
-			MarketSegmentID: qr.MarketSegmentID,
-			Title:           qr.Title,
-			Slug:            qr.Slug,
-			Description:     qr.Description,
-			Summary:         qr.Summary,
-			ThumbnailURL:    qr.ThumbnailURL,
-			Price:           qr.Price,
-			Currency:        qr.Currency,
-			PageCount:       qr.PageCount,
-			PublishedAt:     qr.PublishedAt,
-			IsPublished:     qr.IsPublished,
-			IsFeatured:      qr.IsFeatured,
-			ViewCount:       qr.ViewCount,
-			DownloadCount:   qr.DownloadCount,
-			MetaTitle:       qr.MetaTitle,
-			MetaDescription: qr.MetaDescription,
-			MetaKeywords:    qr.MetaKeywords,
-			CreatedAt:       qr.CreatedAt,
-			UpdatedAt:       qr.UpdatedAt,
-		},
-		CategoryName:      qr.CategoryName,
-		SubCategoryName:   qr.SubCategoryName,
-		MarketSegmentName: qr.MarketSegmentName,
-	}
-
-	// Get charts (single additional query)
-	charts, _ := r.GetChartsByReportID(qr.ID)
+	// Get charts
+	charts, _ := r.GetChartsByReportID(result.ID)
 	result.Charts = charts
 
-	return result, nil
+	// Get versions
+	versions, _ := r.GetVersionsByReportID(result.ID)
+	result.Versions = versions
+
+	return &result, nil
 }
 
 func (r *reportRepository) GetByCategorySlug(categorySlug string, page, limit int) ([]report.Report, int64, error) {
@@ -159,28 +191,22 @@ func (r *reportRepository) GetByCategorySlug(categorySlug string, page, limit in
 
 	offset := (page - 1) * limit
 
-	// Use raw SQL for better performance
 	countSQL := `
 		SELECT COUNT(*)
 		FROM reports r
 		INNER JOIN categories c ON r.category_id = c.id
-		WHERE c.slug = ? AND c.is_active = true AND r.is_published = true
+		WHERE c.slug = ? AND c.is_active = true AND r.status = 'published'
 	`
 	if err := r.db.Raw(countSQL, categorySlug).Scan(&total).Error; err != nil {
 		return nil, 0, err
 	}
 
-	// Raw SQL for fetching reports
 	querySQL := `
-		SELECT r.id, r.title, r.slug, r.description, r.summary, r.thumbnail_url,
-		       r.price, r.currency, r.page_count, r.category_id, r.sub_category_id,
-		       r.market_segment_id, r.is_published, r.is_featured, r.view_count,
-		       r.download_count, r.published_at, r.meta_title, r.meta_description,
-		       r.meta_keywords, r.created_at, r.updated_at
+		SELECT r.*
 		FROM reports r
 		INNER JOIN categories c ON r.category_id = c.id
-		WHERE c.slug = ? AND c.is_active = true AND r.is_published = true
-		ORDER BY r.published_at DESC
+		WHERE c.slug = ? AND c.is_active = true AND r.status = 'published'
+		ORDER BY COALESCE(r.publish_date, r.updated_at) DESC
 		LIMIT ? OFFSET ?
 	`
 
@@ -196,27 +222,22 @@ func (r *reportRepository) Search(query string, page, limit int) ([]report.Repor
 	offset := (page - 1) * limit
 	searchPattern := "%" + query + "%"
 
-	// Use raw SQL for better performance
 	countSQL := `
 		SELECT COUNT(*)
 		FROM reports
-		WHERE is_published = true
+		WHERE status = 'published'
 		AND (title ILIKE ? OR description ILIKE ? OR summary ILIKE ?)
 	`
 	if err := r.db.Raw(countSQL, searchPattern, searchPattern, searchPattern).Scan(&total).Error; err != nil {
 		return nil, 0, err
 	}
 
-	// Raw SQL for fetching reports
 	querySQL := `
-		SELECT id, title, slug, description, summary, thumbnail_url, price, currency,
-		       page_count, category_id, sub_category_id, market_segment_id,
-		       is_published, is_featured, view_count, download_count, published_at,
-		       meta_title, meta_description, meta_keywords, created_at, updated_at
+		SELECT *
 		FROM reports
-		WHERE is_published = true
+		WHERE status = 'published'
 		AND (title ILIKE ? OR description ILIKE ? OR summary ILIKE ?)
-		ORDER BY published_at DESC
+		ORDER BY COALESCE(publish_date, updated_at) DESC
 		LIMIT ? OFFSET ?
 	`
 
@@ -260,4 +281,27 @@ func (r *reportRepository) GetByID(id uint) (*report.Report, error) {
 		return nil, err
 	}
 	return &rep, nil
+}
+
+// Version history methods
+
+func (r *reportRepository) CreateVersion(version *report.ReportVersion) error {
+	return r.db.Create(version).Error
+}
+
+func (r *reportRepository) GetVersionsByReportID(reportID uint) ([]report.ReportVersion, error) {
+	var versions []report.ReportVersion
+	err := r.db.Where("report_id = ?", reportID).
+		Order("version_number DESC").
+		Find(&versions).Error
+	return versions, err
+}
+
+func (r *reportRepository) GetLatestVersionNumber(reportID uint) (int, error) {
+	var maxVersion int
+	err := r.db.Model(&report.ReportVersion{}).
+		Where("report_id = ?", reportID).
+		Select("COALESCE(MAX(version_number), 0)").
+		Scan(&maxVersion).Error
+	return maxVersion, err
 }

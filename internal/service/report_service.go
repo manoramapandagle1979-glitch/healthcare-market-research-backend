@@ -11,11 +11,12 @@ import (
 
 type ReportService interface {
 	GetAll(page, limit int) ([]report.Report, int64, error)
+	GetAllWithFilters(filters repository.ReportFilters) ([]report.Report, int64, error)
 	GetBySlug(slug string) (*report.ReportWithRelations, error)
 	GetByCategorySlug(categorySlug string, page, limit int) ([]report.Report, int64, error)
 	Search(query string, page, limit int) ([]report.Report, int64, error)
 	Create(report *report.Report) error
-	Update(id uint, report *report.Report) error
+	Update(id uint, report *report.Report, userID uint) error
 	Delete(id uint) error
 }
 
@@ -106,6 +107,11 @@ func (s *reportService) GetByCategorySlug(categorySlug string, page, limit int) 
 	return res.Reports, res.Total, nil
 }
 
+func (s *reportService) GetAllWithFilters(filters repository.ReportFilters) ([]report.Report, int64, error) {
+	// Don't cache filtered results due to high variability
+	return s.repo.GetAllWithFilters(filters)
+}
+
 func (s *reportService) Search(query string, page, limit int) ([]report.Report, int64, error) {
 	// Search queries are not cached due to high variability
 	return s.repo.Search(query, page, limit)
@@ -129,17 +135,54 @@ func (s *reportService) Create(rep *report.Report) error {
 	return nil
 }
 
-func (s *reportService) Update(id uint, rep *report.Report) error {
-	// Get existing report to check slug
+func (s *reportService) Update(id uint, rep *report.Report, userID uint) error {
+	// Get existing report to check slug and status
 	existing, err := s.repo.GetByID(id)
 	if err != nil {
 		return err
 	}
 
 	rep.ID = id
+
+	// Check if status is changing from draft to published
+	statusChanged := existing.Status == "draft" && rep.Status == "published"
+
+	// Update the report
 	err = s.repo.Update(rep)
 	if err != nil {
 		return err
+	}
+
+	// If status changed to published, create a version history entry
+	if statusChanged {
+		// Get the latest version number
+		latestVersion, err := s.repo.GetLatestVersionNumber(id)
+		if err != nil {
+			// Log error but don't fail the update
+			fmt.Printf("Warning: could not get latest version number: %v\n", err)
+		} else {
+			// Create new version
+			version := &report.ReportVersion{
+				ReportID:       id,
+				VersionNumber:  latestVersion + 1,
+				PublishedBy:    userID,
+				PublishedAt:    time.Now(),
+				Sections:       rep.Sections,
+				Metadata:       rep.Metadata,
+			}
+
+			if err := s.repo.CreateVersion(version); err != nil {
+				// Log error but don't fail the update
+				fmt.Printf("Warning: could not create version history: %v\n", err)
+			}
+		}
+
+		// Update publish_date if not set
+		if rep.PublishDate == nil {
+			now := time.Now()
+			rep.PublishDate = &now
+			s.repo.Update(rep) // Update again with publish_date
+		}
 	}
 
 	// Invalidate caches

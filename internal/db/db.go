@@ -78,6 +78,7 @@ func Migrate() error {
 		&category.MarketSegment{},
 		&report.Report{},
 		&report.ChartMetadata{},
+		&report.ReportVersion{},
 	)
 
 	if err != nil {
