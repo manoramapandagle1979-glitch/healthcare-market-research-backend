@@ -136,8 +136,6 @@ definitions:
         allOf:
         - $ref: '#/definitions/report.MarketMetrics'
         description: Market data
-      market_segment_id:
-        type: integer
       meta_description:
         type: string
       meta_keywords:
@@ -169,8 +167,6 @@ definitions:
       status:
         description: Status and access
         type: string
-      sub_category_id:
-        type: integer
       summary:
         type: string
       thumbnail_url:
@@ -326,10 +322,6 @@ definitions:
         allOf:
         - $ref: '#/definitions/report.MarketMetrics'
         description: Market data
-      market_segment_id:
-        type: integer
-      market_segment_name:
-        type: string
       meta_description:
         type: string
       meta_keywords:
@@ -360,10 +352,6 @@ definitions:
         type: string
       status:
         description: Status and access
-        type: string
-      sub_category_id:
-        type: integer
-      sub_category_name:
         type: string
       summary:
         type: string
@@ -525,7 +513,7 @@ definitions:
       updated_at:
         type: string
     type: object
-host: localhost:8081
+host: 192.168.1.2:8081
 info:
   contact:
     email: support@example.com

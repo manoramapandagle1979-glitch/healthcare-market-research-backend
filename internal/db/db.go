@@ -74,8 +74,6 @@ func Migrate() error {
 	err := DB.AutoMigrate(
 		&user.User{},
 		&category.Category{},
-		&category.SubCategory{},
-		&category.MarketSegment{},
 		&report.Report{},
 		&report.ChartMetadata{},
 		&report.ReportVersion{},

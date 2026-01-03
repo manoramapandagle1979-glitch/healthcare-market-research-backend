@@ -190,8 +190,6 @@ type UserReference struct {
 type Report struct {
 	ID              uint            `json:"id" gorm:"primaryKey"`
 	CategoryID      uint            `json:"category_id" gorm:"index;not null"`
-	SubCategoryID   *uint           `json:"sub_category_id,omitempty" gorm:"index"`
-	MarketSegmentID *uint           `json:"market_segment_id,omitempty" gorm:"index"`
 	Title           string          `json:"title" gorm:"type:varchar(500);not null"`
 	Slug            string          `json:"slug" gorm:"type:varchar(500);uniqueIndex;not null"`
 	Description     string          `json:"description" gorm:"type:text"`
@@ -286,12 +284,10 @@ type ReportVersion struct {
 
 type ReportWithRelations struct {
 	Report
-	CategoryName      string           `json:"category_name,omitempty"`
-	SubCategoryName   string           `json:"sub_category_name,omitempty"`
-	MarketSegmentName string           `json:"market_segment_name,omitempty"`
-	Charts            []ChartMetadata  `json:"charts,omitempty"`
-	Author            *UserReference   `json:"author,omitempty"`
-	Versions          []ReportVersion  `json:"versions,omitempty"`
+	CategoryName string           `json:"category_name,omitempty"`
+	Charts       []ChartMetadata  `json:"charts,omitempty"`
+	Author       *UserReference   `json:"author,omitempty"`
+	Versions     []ReportVersion  `json:"versions,omitempty"`
 }
 
 // Workflow status constants
@@ -315,18 +311,16 @@ type UserInfo struct {
 
 // AdminReportResponse includes all fields plus admin metadata
 type AdminReportResponse struct {
-	Report                    // Embed base report
-	CategoryName     string   `json:"category_name,omitempty"`
-	SubCategoryName  string   `json:"sub_category_name,omitempty"`
-	MarketSegmentName string  `json:"market_segment_name,omitempty"`
+	Report                  // Embed base report
+	CategoryName string     `json:"category_name,omitempty"`
 
 	// Creator/updater info
-	CreatedByUser    *UserInfo `json:"created_by_user,omitempty"`
-	UpdatedByUser    *UserInfo `json:"updated_by_user,omitempty"`
-	ApprovedByUser   *UserInfo `json:"approved_by_user,omitempty"`
+	CreatedByUser  *UserInfo `json:"created_by_user,omitempty"`
+	UpdatedByUser  *UserInfo `json:"updated_by_user,omitempty"`
+	ApprovedByUser *UserInfo `json:"approved_by_user,omitempty"`
 
 	// Relations
-	Authors          []UserInfo       `json:"authors,omitempty"`
-	Charts           []ChartMetadata  `json:"charts,omitempty"`
-	Versions         []ReportVersion  `json:"versions,omitempty"`
+	Authors  []UserInfo       `json:"authors,omitempty"`
+	Charts   []ChartMetadata  `json:"charts,omitempty"`
+	Versions []ReportVersion  `json:"versions,omitempty"`
 }

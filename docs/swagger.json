@@ -18,7 +18,7 @@
         },
         "version": "1.0"
     },
-    "host": "localhost:8081",
+    "host": "192.168.1.2:8081",
     "basePath": "/",
     "paths": {
         "/api/v1/auth/login": {
@@ -2547,9 +2547,6 @@
                         }
                     ]
                 },
-                "market_segment_id": {
-                    "type": "integer"
-                },
                 "meta_description": {
                     "type": "string"
                 },
@@ -2597,9 +2594,6 @@
                 "status": {
                     "description": "Status and access",
                     "type": "string"
-                },
-                "sub_category_id": {
-                    "type": "integer"
                 },
                 "summary": {
                     "type": "string"
@@ -2834,12 +2828,6 @@
                         }
                     ]
                 },
-                "market_segment_id": {
-                    "type": "integer"
-                },
-                "market_segment_name": {
-                    "type": "string"
-                },
                 "meta_description": {
                     "type": "string"
                 },
@@ -2886,12 +2874,6 @@
                 },
                 "status": {
                     "description": "Status and access",
-                    "type": "string"
-                },
-                "sub_category_id": {
-                    "type": "integer"
-                },
-                "sub_category_name": {
                     "type": "string"
                 },
                 "summary": {

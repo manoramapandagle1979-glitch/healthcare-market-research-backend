@@ -2549,9 +2549,6 @@ const docTemplate = `{
                         }
                     ]
                 },
-                "market_segment_id": {
-                    "type": "integer"
-                },
                 "meta_description": {
                     "type": "string"
                 },
@@ -2599,9 +2596,6 @@ const docTemplate = `{
                 "status": {
                     "description": "Status and access",
                     "type": "string"
-                },
-                "sub_category_id": {
-                    "type": "integer"
                 },
                 "summary": {
                     "type": "string"
@@ -2836,12 +2830,6 @@ const docTemplate = `{
                         }
                     ]
                 },
-                "market_segment_id": {
-                    "type": "integer"
-                },
-                "market_segment_name": {
-                    "type": "string"
-                },
                 "meta_description": {
                     "type": "string"
                 },
@@ -2888,12 +2876,6 @@ const docTemplate = `{
                 },
                 "status": {
                     "description": "Status and access",
-                    "type": "string"
-                },
-                "sub_category_id": {
-                    "type": "integer"
-                },
-                "sub_category_name": {
                     "type": "string"
                 },
                 "summary": {
@@ -3170,7 +3152,7 @@ const docTemplate = `{
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
 	Version:          "1.0",
-	Host:             "localhost:8081",
+	Host:             "192.168.1.2:8081",
 	BasePath:         "/",
 	Schemes:          []string{"http", "https"},
 	Title:            "Healthcare Market Research API",
