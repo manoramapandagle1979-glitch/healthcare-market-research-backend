@@ -164,6 +164,12 @@ func main() {
 	v1.Put("/reports/:id", middleware.RequireAuth(authService), middleware.RequireRole("admin", "editor"), reportHandler.Update)
 	v1.Delete("/reports/:id", middleware.RequireAuth(authService), middleware.RequireRole("admin"), reportHandler.Delete)
 
+	// Workflow management routes (admin/editor only)
+	v1.Post("/reports/:id/submit-review", middleware.RequireAuth(authService), middleware.RequireRole("admin", "editor"), reportHandler.SubmitForReview)
+	v1.Post("/reports/:id/approve", middleware.RequireAuth(authService), middleware.RequireRole("admin"), reportHandler.ApproveReport)
+	v1.Post("/reports/:id/reject", middleware.RequireAuth(authService), middleware.RequireRole("admin"), reportHandler.RejectReport)
+	v1.Post("/reports/:id/schedule", middleware.RequireAuth(authService), middleware.RequireRole("admin"), reportHandler.SchedulePublish)
+
 	// Category routes (public read, protected write)
 	v1.Get("/categories", categoryHandler.GetAll)
 	v1.Get("/categories/:slug", categoryHandler.GetBySlug)

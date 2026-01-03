@@ -547,7 +547,7 @@ const docTemplate = `{
         },
         "/api/v1/reports": {
             "get": {
-                "description": "Get a paginated list of healthcare market research reports with optional filters for status, category, geography, access type, and search",
+                "description": "Get a paginated list of healthcare market research reports with optional filters for status, category, geography, access type, and search. Admin users can use additional filters for user tracking, workflow status, and date ranges. Admin-only fields are automatically included in responses for authenticated admin/editor users.",
                 "consumes": [
                     "application/json"
                 ],
@@ -600,11 +600,65 @@ const docTemplate = `{
                         "description": "Search in title, summary, and description",
                         "name": "search",
                         "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Admin only: Filter by creator user ID",
+                        "name": "created_by",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Admin only: Filter by last updater user ID",
+                        "name": "updated_by",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Admin only: Filter by workflow status (draft, pending_review, approved, rejected, scheduled, published, archived)",
+                        "name": "workflow_status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Admin only: Filter by created date (ISO 8601, e.g., 2024-01-01T00:00:00Z)",
+                        "name": "created_after",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Admin only: Filter by created date (ISO 8601)",
+                        "name": "created_before",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Admin only: Filter by updated date (ISO 8601)",
+                        "name": "updated_after",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Admin only: Filter by updated date (ISO 8601)",
+                        "name": "updated_before",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Admin only: Filter by published date (ISO 8601)",
+                        "name": "published_after",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "Admin only: Filter by published date (ISO 8601)",
+                        "name": "published_before",
+                        "in": "query"
                     }
                 ],
                 "responses": {
                     "200": {
-                        "description": "List of reports with pagination metadata",
+                        "description": "List of reports with pagination metadata. Admin fields (created_by, updated_by, internal_notes, workflow_status, scheduled_publish_at, approved_by, approved_at) are included only for authenticated admin/editor users.",
                         "schema": {
                             "allOf": [
                                 {
@@ -648,7 +702,12 @@ const docTemplate = `{
                 }
             },
             "post": {
-                "description": "Create a new healthcare market research report",
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Create a new healthcare market research report. Automatically sets created_by and updated_by to the authenticated user, and workflow_status to 'draft'. Requires admin or editor role.",
                 "consumes": [
                     "application/json"
                 ],
@@ -672,7 +731,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "201": {
-                        "description": "Created report",
+                        "description": "Created report with auto-populated admin tracking fields",
                         "schema": {
                             "allOf": [
                                 {
@@ -691,6 +750,42 @@ const docTemplate = `{
                     },
                     "400": {
                         "description": "Bad request - invalid input",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized - authentication required",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden - requires admin or editor role",
                         "schema": {
                             "allOf": [
                                 {
@@ -730,7 +825,12 @@ const docTemplate = `{
         },
         "/api/v1/reports/{id}": {
             "put": {
-                "description": "Update an existing healthcare market research report by ID",
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Update an existing healthcare market research report by ID. Automatically updates updated_by field. If workflow_status changes to 'approved', sets approved_by and approved_at. Creates version history when status changes to 'published'. Requires admin or editor role.",
                 "consumes": [
                     "application/json"
                 ],
@@ -761,7 +861,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "200": {
-                        "description": "Updated report",
+                        "description": "Updated report with auto-updated admin tracking fields",
                         "schema": {
                             "allOf": [
                                 {
@@ -797,7 +897,25 @@ const docTemplate = `{
                         }
                     },
                     "401": {
-                        "description": "Unauthorized",
+                        "description": "Unauthorized - authentication required",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden - requires admin or editor role",
                         "schema": {
                             "allOf": [
                                 {
@@ -853,7 +971,12 @@ const docTemplate = `{
                 }
             },
             "delete": {
-                "description": "Delete a healthcare market research report by ID",
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Delete a healthcare market research report by ID. Permanently removes the report and all associated data. Requires admin role.",
                 "consumes": [
                     "application/json"
                 ],
@@ -913,6 +1036,42 @@ const docTemplate = `{
                             ]
                         }
                     },
+                    "401": {
+                        "description": "Unauthorized - authentication required",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden - requires admin role",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
                     "404": {
                         "description": "Report not found",
                         "schema": {
@@ -933,6 +1092,518 @@ const docTemplate = `{
                     },
                     "500": {
                         "description": "Internal server error",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/reports/{id}/approve": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Approve a report (changes workflow_status from 'pending_review' to 'approved'). Can only be called on reports with workflow_status of 'pending_review'. Automatically sets approved_by to the authenticated user and approved_at to current timestamp. Updates updated_by field. Requires admin role only.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Reports - Workflow"
+                ],
+                "summary": "Approve report",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Report ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Report approved successfully",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request - invalid ID or invalid workflow transition (e.g., report is not in pending_review status)",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized - authentication required",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden - requires admin role",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "404": {
+                        "description": "Report not found",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/reports/{id}/reject": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Reject a report with a reason (changes workflow_status from 'pending_review' to 'rejected'). Can only be called on reports with workflow_status of 'pending_review'. Automatically appends rejection reason with timestamp to internal_notes field. Updates updated_by field. Requires admin role only.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Reports - Workflow"
+                ],
+                "summary": "Reject report",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Report ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Rejection details - reason field is required and will be appended to internal_notes",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "reason": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Report rejected successfully",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request - invalid ID, missing reason, or invalid workflow transition (e.g., report is not in pending_review status)",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized - authentication required",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden - requires admin role",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "404": {
+                        "description": "Report not found",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/reports/{id}/schedule": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Schedule an approved report for future publishing (changes workflow_status from 'approved' to 'scheduled'). Can only be called on reports with workflow_status of 'approved'. Sets scheduled_publish_at to the provided timestamp. The scheduled time must be in the future. Requires admin role only.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Reports - Workflow"
+                ],
+                "summary": "Schedule report for publishing",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Report ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Schedule details - scheduled_at must be a future timestamp in RFC3339 format (e.g., '2024-02-01T10:00:00Z')",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object",
+                            "properties": {
+                                "scheduled_at": {
+                                    "type": "string"
+                                }
+                            }
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Report scheduled for publishing successfully",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request - invalid ID, missing/invalid scheduled_at, scheduled time is in the past, or invalid workflow transition (e.g., report is not in approved status)",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized - authentication required",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden - requires admin role",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "404": {
+                        "description": "Report not found",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        },
+        "/api/v1/reports/{id}/submit-review": {
+            "post": {
+                "security": [
+                    {
+                        "BearerAuth": []
+                    }
+                ],
+                "description": "Submit a report for review (changes workflow_status from 'draft' or 'rejected' to 'pending_review'). Can only be called on reports with workflow_status of 'draft' or 'rejected'. Updates the updated_by field to the authenticated user. Requires admin or editor role.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Reports - Workflow"
+                ],
+                "summary": "Submit report for review",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Report ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "Report submitted for review successfully",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "data": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "400": {
+                        "description": "Bad request - invalid ID or invalid workflow transition (e.g., report is not in draft/rejected status)",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized - authentication required",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden - requires admin or editor role",
+                        "schema": {
+                            "allOf": [
+                                {
+                                    "$ref": "#/definitions/response.Response"
+                                },
+                                {
+                                    "type": "object",
+                                    "properties": {
+                                        "error": {
+                                            "type": "string"
+                                        }
+                                    }
+                                }
+                            ]
+                        }
+                    },
+                    "404": {
+                        "description": "Report not found",
                         "schema": {
                             "allOf": [
                                 {
@@ -1800,6 +2471,12 @@ const docTemplate = `{
                 "access_type": {
                     "type": "string"
                 },
+                "approved_at": {
+                    "type": "string"
+                },
+                "approved_by": {
+                    "type": "integer"
+                },
                 "author_ids": {
                     "description": "Authors (JSON array of user IDs)",
                     "type": "array",
@@ -1813,6 +2490,10 @@ const docTemplate = `{
                 "created_at": {
                     "description": "Timestamps",
                     "type": "string"
+                },
+                "created_by": {
+                    "description": "User tracking (admin metadata)",
+                    "type": "integer"
                 },
                 "currency": {
                     "type": "string"
@@ -1847,6 +2528,9 @@ const docTemplate = `{
                 },
                 "id": {
                     "type": "integer"
+                },
+                "internal_notes": {
+                    "type": "string"
                 },
                 "is_featured": {
                     "type": "boolean"
@@ -1898,6 +2582,9 @@ const docTemplate = `{
                     "description": "Publishing",
                     "type": "string"
                 },
+                "scheduled_publish_at": {
+                    "type": "string"
+                },
                 "sections": {
                     "description": "Content sections",
                     "allOf": [
@@ -1928,9 +2615,16 @@ const docTemplate = `{
                 "updated_at": {
                     "type": "string"
                 },
+                "updated_by": {
+                    "type": "integer"
+                },
                 "view_count": {
                     "description": "Statistics",
                     "type": "integer"
+                },
+                "workflow_status": {
+                    "description": "Workflow management",
+                    "type": "string"
                 }
             }
         },
@@ -2052,6 +2746,12 @@ const docTemplate = `{
                 "access_type": {
                     "type": "string"
                 },
+                "approved_at": {
+                    "type": "string"
+                },
+                "approved_by": {
+                    "type": "integer"
+                },
                 "author": {
                     "$ref": "#/definitions/report.UserReference"
                 },
@@ -2077,6 +2777,10 @@ const docTemplate = `{
                 "created_at": {
                     "description": "Timestamps",
                     "type": "string"
+                },
+                "created_by": {
+                    "description": "User tracking (admin metadata)",
+                    "type": "integer"
                 },
                 "currency": {
                     "type": "string"
@@ -2111,6 +2815,9 @@ const docTemplate = `{
                 },
                 "id": {
                     "type": "integer"
+                },
+                "internal_notes": {
+                    "type": "string"
                 },
                 "is_featured": {
                     "type": "boolean"
@@ -2165,6 +2872,9 @@ const docTemplate = `{
                     "description": "Publishing",
                     "type": "string"
                 },
+                "scheduled_publish_at": {
+                    "type": "string"
+                },
                 "sections": {
                     "description": "Content sections",
                     "allOf": [
@@ -2198,6 +2908,9 @@ const docTemplate = `{
                 "updated_at": {
                     "type": "string"
                 },
+                "updated_by": {
+                    "type": "integer"
+                },
                 "versions": {
                     "type": "array",
                     "items": {
@@ -2207,6 +2920,10 @@ const docTemplate = `{
                 "view_count": {
                     "description": "Statistics",
                     "type": "integer"
+                },
+                "workflow_status": {
+                    "description": "Workflow management",
+                    "type": "string"
                 }
             }
         },

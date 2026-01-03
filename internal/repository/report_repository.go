@@ -3,6 +3,7 @@ package repository
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/healthcare-market-research/backend/internal/domain/report"
 	"gorm.io/gorm"
@@ -10,6 +11,7 @@ import (
 
 // ReportFilters contains all possible filter options for reports
 type ReportFilters struct {
+	// Public filters
 	Status      string   // 'draft' or 'published'
 	Category    string   // Category slug
 	Geography   []string // Array of geography strings
@@ -17,6 +19,18 @@ type ReportFilters struct {
 	AccessType  string   // 'free' or 'paid'
 	Page        int
 	Limit       int
+
+	// Admin filters
+	CreatedBy       *uint      // Filter by creator user ID
+	UpdatedBy       *uint      // Filter by last updater user ID
+	WorkflowStatus  string     // Filter by workflow status
+	CreatedAfter    *time.Time // Date range start
+	CreatedBefore   *time.Time // Date range end
+	UpdatedAfter    *time.Time
+	UpdatedBefore   *time.Time
+	PublishedAfter  *time.Time
+	PublishedBefore *time.Time
+	IncludeDrafts   bool       // For admin, show drafts
 }
 
 type ReportRepository interface {
@@ -121,6 +135,59 @@ func (r *reportRepository) GetAllWithFilters(filters ReportFilters) ([]report.Re
 		conditions = append(conditions, "(r.title ILIKE ? OR r.summary ILIKE ? OR r.description ILIKE ?)")
 		args = append(args, searchPattern, searchPattern, searchPattern)
 		countArgs = append(countArgs, searchPattern, searchPattern, searchPattern)
+	}
+
+	// Admin filters
+	if filters.CreatedBy != nil {
+		conditions = append(conditions, "r.created_by = ?")
+		args = append(args, *filters.CreatedBy)
+		countArgs = append(countArgs, *filters.CreatedBy)
+	}
+
+	if filters.UpdatedBy != nil {
+		conditions = append(conditions, "r.updated_by = ?")
+		args = append(args, *filters.UpdatedBy)
+		countArgs = append(countArgs, *filters.UpdatedBy)
+	}
+
+	if filters.WorkflowStatus != "" {
+		conditions = append(conditions, "r.workflow_status = ?")
+		args = append(args, filters.WorkflowStatus)
+		countArgs = append(countArgs, filters.WorkflowStatus)
+	}
+
+	// Date range filters
+	if filters.CreatedAfter != nil {
+		conditions = append(conditions, "r.created_at >= ?")
+		args = append(args, *filters.CreatedAfter)
+		countArgs = append(countArgs, *filters.CreatedAfter)
+	}
+	if filters.CreatedBefore != nil {
+		conditions = append(conditions, "r.created_at <= ?")
+		args = append(args, *filters.CreatedBefore)
+		countArgs = append(countArgs, *filters.CreatedBefore)
+	}
+
+	if filters.UpdatedAfter != nil {
+		conditions = append(conditions, "r.updated_at >= ?")
+		args = append(args, *filters.UpdatedAfter)
+		countArgs = append(countArgs, *filters.UpdatedAfter)
+	}
+	if filters.UpdatedBefore != nil {
+		conditions = append(conditions, "r.updated_at <= ?")
+		args = append(args, *filters.UpdatedBefore)
+		countArgs = append(countArgs, *filters.UpdatedBefore)
+	}
+
+	if filters.PublishedAfter != nil {
+		conditions = append(conditions, "r.publish_date >= ?")
+		args = append(args, *filters.PublishedAfter)
+		countArgs = append(countArgs, *filters.PublishedAfter)
+	}
+	if filters.PublishedBefore != nil {
+		conditions = append(conditions, "r.publish_date <= ?")
+		args = append(args, *filters.PublishedBefore)
+		countArgs = append(countArgs, *filters.PublishedBefore)
 	}
 
 	whereClause := strings.Join(conditions, " AND ")

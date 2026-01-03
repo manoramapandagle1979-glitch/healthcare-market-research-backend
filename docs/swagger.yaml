@@ -84,6 +84,10 @@ definitions:
     properties:
       access_type:
         type: string
+      approved_at:
+        type: string
+      approved_by:
+        type: integer
       author_ids:
         description: Authors (JSON array of user IDs)
         items:
@@ -94,6 +98,9 @@ definitions:
       created_at:
         description: Timestamps
         type: string
+      created_by:
+        description: User tracking (admin metadata)
+        type: integer
       currency:
         type: string
       description:
@@ -117,6 +124,8 @@ definitions:
         type: array
       id:
         type: integer
+      internal_notes:
+        type: string
       is_featured:
         type: boolean
       key_players:
@@ -149,6 +158,8 @@ definitions:
       publish_date:
         description: Publishing
         type: string
+      scheduled_publish_at:
+        type: string
       sections:
         allOf:
         - $ref: '#/definitions/report.ReportSections'
@@ -168,9 +179,14 @@ definitions:
         type: string
       updated_at:
         type: string
+      updated_by:
+        type: integer
       view_count:
         description: Statistics
         type: integer
+      workflow_status:
+        description: Workflow management
+        type: string
     type: object
   report.ReportMetadata:
     properties:
@@ -250,6 +266,10 @@ definitions:
     properties:
       access_type:
         type: string
+      approved_at:
+        type: string
+      approved_by:
+        type: integer
       author:
         $ref: '#/definitions/report.UserReference'
       author_ids:
@@ -268,6 +288,9 @@ definitions:
       created_at:
         description: Timestamps
         type: string
+      created_by:
+        description: User tracking (admin metadata)
+        type: integer
       currency:
         type: string
       description:
@@ -291,6 +314,8 @@ definitions:
         type: array
       id:
         type: integer
+      internal_notes:
+        type: string
       is_featured:
         type: boolean
       key_players:
@@ -325,6 +350,8 @@ definitions:
       publish_date:
         description: Publishing
         type: string
+      scheduled_publish_at:
+        type: string
       sections:
         allOf:
         - $ref: '#/definitions/report.ReportSections'
@@ -346,6 +373,8 @@ definitions:
         type: string
       updated_at:
         type: string
+      updated_by:
+        type: integer
       versions:
         items:
           $ref: '#/definitions/report.ReportVersion'
@@ -353,6 +382,9 @@ definitions:
       view_count:
         description: Statistics
         type: integer
+      workflow_status:
+        description: Workflow management
+        type: string
     type: object
   report.UserReference:
     properties:
@@ -801,7 +833,10 @@ paths:
       consumes:
       - application/json
       description: Get a paginated list of healthcare market research reports with
-        optional filters for status, category, geography, access type, and search
+        optional filters for status, category, geography, access type, and search.
+        Admin users can use additional filters for user tracking, workflow status,
+        and date ranges. Admin-only fields are automatically included in responses
+        for authenticated admin/editor users.
       parameters:
       - description: 'Page number (default: 1, min: 1)'
         in: query
@@ -831,11 +866,50 @@ paths:
         in: query
         name: search
         type: string
+      - description: 'Admin only: Filter by creator user ID'
+        in: query
+        name: created_by
+        type: integer
+      - description: 'Admin only: Filter by last updater user ID'
+        in: query
+        name: updated_by
+        type: integer
+      - description: 'Admin only: Filter by workflow status (draft, pending_review,
+          approved, rejected, scheduled, published, archived)'
+        in: query
+        name: workflow_status
+        type: string
+      - description: 'Admin only: Filter by created date (ISO 8601, e.g., 2024-01-01T00:00:00Z)'
+        in: query
+        name: created_after
+        type: string
+      - description: 'Admin only: Filter by created date (ISO 8601)'
+        in: query
+        name: created_before
+        type: string
+      - description: 'Admin only: Filter by updated date (ISO 8601)'
+        in: query
+        name: updated_after
+        type: string
+      - description: 'Admin only: Filter by updated date (ISO 8601)'
+        in: query
+        name: updated_before
+        type: string
+      - description: 'Admin only: Filter by published date (ISO 8601)'
+        in: query
+        name: published_after
+        type: string
+      - description: 'Admin only: Filter by published date (ISO 8601)'
+        in: query
+        name: published_before
+        type: string
       produces:
       - application/json
       responses:
         "200":
-          description: List of reports with pagination metadata
+          description: List of reports with pagination metadata. Admin fields (created_by,
+            updated_by, internal_notes, workflow_status, scheduled_publish_at, approved_by,
+            approved_at) are included only for authenticated admin/editor users.
           schema:
             allOf:
             - $ref: '#/definitions/response.Response'
@@ -862,7 +936,9 @@ paths:
     post:
       consumes:
       - application/json
-      description: Create a new healthcare market research report
+      description: Create a new healthcare market research report. Automatically sets
+        created_by and updated_by to the authenticated user, and workflow_status to
+        'draft'. Requires admin or editor role.
       parameters:
       - description: Report data
         in: body
@@ -874,7 +950,7 @@ paths:
       - application/json
       responses:
         "201":
-          description: Created report
+          description: Created report with auto-populated admin tracking fields
           schema:
             allOf:
             - $ref: '#/definitions/response.Response'
@@ -891,6 +967,24 @@ paths:
                 error:
                   type: string
               type: object
+        "401":
+          description: Unauthorized - authentication required
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "403":
+          description: Forbidden - requires admin or editor role
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                error:
+                  type: string
+              type: object
         "500":
           description: Internal server error
           schema:
@@ -900,6 +994,8 @@ paths:
                 error:
                   type: string
               type: object
+      security:
+      - BearerAuth: []
       summary: Create a new report
       tags:
       - Reports
@@ -907,7 +1003,8 @@ paths:
     delete:
       consumes:
       - application/json
-      description: Delete a healthcare market research report by ID
+      description: Delete a healthcare market research report by ID. Permanently removes
+        the report and all associated data. Requires admin role.
       parameters:
       - description: Report ID
         in: path
@@ -937,6 +1034,24 @@ paths:
                 error:
                   type: string
               type: object
+        "401":
+          description: Unauthorized - authentication required
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "403":
+          description: Forbidden - requires admin role
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                error:
+                  type: string
+              type: object
         "404":
           description: Report not found
           schema:
@@ -955,13 +1070,18 @@ paths:
                 error:
                   type: string
               type: object
+      security:
+      - BearerAuth: []
       summary: Delete a report
       tags:
       - Reports
     put:
       consumes:
       - application/json
-      description: Update an existing healthcare market research report by ID
+      description: Update an existing healthcare market research report by ID. Automatically
+        updates updated_by field. If workflow_status changes to 'approved', sets approved_by
+        and approved_at. Creates version history when status changes to 'published'.
+        Requires admin or editor role.
       parameters:
       - description: Report ID
         in: path
@@ -978,7 +1098,7 @@ paths:
       - application/json
       responses:
         "200":
-          description: Updated report
+          description: Updated report with auto-updated admin tracking fields
           schema:
             allOf:
             - $ref: '#/definitions/response.Response'
@@ -996,7 +1116,16 @@ paths:
                   type: string
               type: object
         "401":
-          description: Unauthorized
+          description: Unauthorized - authentication required
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "403":
+          description: Forbidden - requires admin or editor role
           schema:
             allOf:
             - $ref: '#/definitions/response.Response'
@@ -1022,9 +1151,304 @@ paths:
                 error:
                   type: string
               type: object
+      security:
+      - BearerAuth: []
       summary: Update a report
       tags:
       - Reports
+  /api/v1/reports/{id}/approve:
+    post:
+      consumes:
+      - application/json
+      description: Approve a report (changes workflow_status from 'pending_review'
+        to 'approved'). Can only be called on reports with workflow_status of 'pending_review'.
+        Automatically sets approved_by to the authenticated user and approved_at to
+        current timestamp. Updates updated_by field. Requires admin role only.
+      parameters:
+      - description: Report ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Report approved successfully
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  type: string
+              type: object
+        "400":
+          description: Bad request - invalid ID or invalid workflow transition (e.g.,
+            report is not in pending_review status)
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "401":
+          description: Unauthorized - authentication required
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "403":
+          description: Forbidden - requires admin role
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "404":
+          description: Report not found
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                error:
+                  type: string
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Approve report
+      tags:
+      - Reports - Workflow
+  /api/v1/reports/{id}/reject:
+    post:
+      consumes:
+      - application/json
+      description: Reject a report with a reason (changes workflow_status from 'pending_review'
+        to 'rejected'). Can only be called on reports with workflow_status of 'pending_review'.
+        Automatically appends rejection reason with timestamp to internal_notes field.
+        Updates updated_by field. Requires admin role only.
+      parameters:
+      - description: Report ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Rejection details - reason field is required and will be appended
+          to internal_notes
+        in: body
+        name: body
+        required: true
+        schema:
+          properties:
+            reason:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Report rejected successfully
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  type: string
+              type: object
+        "400":
+          description: Bad request - invalid ID, missing reason, or invalid workflow
+            transition (e.g., report is not in pending_review status)
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "401":
+          description: Unauthorized - authentication required
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "403":
+          description: Forbidden - requires admin role
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "404":
+          description: Report not found
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                error:
+                  type: string
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Reject report
+      tags:
+      - Reports - Workflow
+  /api/v1/reports/{id}/schedule:
+    post:
+      consumes:
+      - application/json
+      description: Schedule an approved report for future publishing (changes workflow_status
+        from 'approved' to 'scheduled'). Can only be called on reports with workflow_status
+        of 'approved'. Sets scheduled_publish_at to the provided timestamp. The scheduled
+        time must be in the future. Requires admin role only.
+      parameters:
+      - description: Report ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Schedule details - scheduled_at must be a future timestamp in
+          RFC3339 format (e.g., '2024-02-01T10:00:00Z')
+        in: body
+        name: body
+        required: true
+        schema:
+          properties:
+            scheduled_at:
+              type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Report scheduled for publishing successfully
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  type: string
+              type: object
+        "400":
+          description: Bad request - invalid ID, missing/invalid scheduled_at, scheduled
+            time is in the past, or invalid workflow transition (e.g., report is not
+            in approved status)
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "401":
+          description: Unauthorized - authentication required
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "403":
+          description: Forbidden - requires admin role
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "404":
+          description: Report not found
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                error:
+                  type: string
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Schedule report for publishing
+      tags:
+      - Reports - Workflow
+  /api/v1/reports/{id}/submit-review:
+    post:
+      consumes:
+      - application/json
+      description: Submit a report for review (changes workflow_status from 'draft'
+        or 'rejected' to 'pending_review'). Can only be called on reports with workflow_status
+        of 'draft' or 'rejected'. Updates the updated_by field to the authenticated
+        user. Requires admin or editor role.
+      parameters:
+      - description: Report ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Report submitted for review successfully
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  type: string
+              type: object
+        "400":
+          description: Bad request - invalid ID or invalid workflow transition (e.g.,
+            report is not in draft/rejected status)
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "401":
+          description: Unauthorized - authentication required
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "403":
+          description: Forbidden - requires admin or editor role
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "404":
+          description: Report not found
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                error:
+                  type: string
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Submit report for review
+      tags:
+      - Reports - Workflow
   /api/v1/reports/{slug}:
     get:
       consumes:

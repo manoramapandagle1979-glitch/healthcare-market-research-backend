@@ -241,6 +241,17 @@ type Report struct {
 	MetaDescription string          `json:"meta_description,omitempty" gorm:"type:varchar(500)"`
 	MetaKeywords    string          `json:"meta_keywords,omitempty" gorm:"type:varchar(500)"`
 
+	// User tracking (admin metadata)
+	CreatedBy         *uint          `json:"created_by,omitempty" gorm:"index"`
+	UpdatedBy         *uint          `json:"updated_by,omitempty" gorm:"index"`
+	InternalNotes     string         `json:"internal_notes,omitempty" gorm:"type:text"`
+
+	// Workflow management
+	WorkflowStatus    string         `json:"workflow_status" gorm:"type:varchar(50);default:'draft';index"`
+	ScheduledPublishAt *time.Time    `json:"scheduled_publish_at,omitempty" gorm:"index"`
+	ApprovedBy        *uint          `json:"approved_by,omitempty"`
+	ApprovedAt        *time.Time     `json:"approved_at,omitempty"`
+
 	// Timestamps
 	CreatedAt       time.Time       `json:"created_at"`
 	UpdatedAt       time.Time       `json:"updated_at"`
@@ -281,4 +292,41 @@ type ReportWithRelations struct {
 	Charts            []ChartMetadata  `json:"charts,omitempty"`
 	Author            *UserReference   `json:"author,omitempty"`
 	Versions          []ReportVersion  `json:"versions,omitempty"`
+}
+
+// Workflow status constants
+const (
+	WorkflowDraft         = "draft"
+	WorkflowPendingReview = "pending_review"
+	WorkflowApproved      = "approved"
+	WorkflowRejected      = "rejected"
+	WorkflowScheduled     = "scheduled"
+	WorkflowPublished     = "published"
+	WorkflowArchived      = "archived"
+)
+
+// UserInfo represents user information for admin responses
+type UserInfo struct {
+	ID    uint   `json:"id"`
+	Email string `json:"email"`
+	Name  string `json:"name"`
+	Role  string `json:"role"`
+}
+
+// AdminReportResponse includes all fields plus admin metadata
+type AdminReportResponse struct {
+	Report                    // Embed base report
+	CategoryName     string   `json:"category_name,omitempty"`
+	SubCategoryName  string   `json:"sub_category_name,omitempty"`
+	MarketSegmentName string  `json:"market_segment_name,omitempty"`
+
+	// Creator/updater info
+	CreatedByUser    *UserInfo `json:"created_by_user,omitempty"`
+	UpdatedByUser    *UserInfo `json:"updated_by_user,omitempty"`
+	ApprovedByUser   *UserInfo `json:"approved_by_user,omitempty"`
+
+	// Relations
+	Authors          []UserInfo       `json:"authors,omitempty"`
+	Charts           []ChartMetadata  `json:"charts,omitempty"`
+	Versions         []ReportVersion  `json:"versions,omitempty"`
 }
