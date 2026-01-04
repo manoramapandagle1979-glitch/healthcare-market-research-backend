@@ -369,7 +369,7 @@ func (h *ReportHandler) Create(c *fiber.Ctx) error {
 
 	var req report.Report
 	if err := c.BodyParser(&req); err != nil {
-		return response.BadRequest(c, "Invalid request body")
+		return response.BadRequest(c, "Invalid request body: "+err.Error())
 	}
 
 	// Validate required fields based on frontend expectations
@@ -441,7 +441,7 @@ func (h *ReportHandler) Update(c *fiber.Ctx) error {
 
 	var req report.Report
 	if err := c.BodyParser(&req); err != nil {
-		return response.BadRequest(c, "Invalid request body")
+		return response.BadRequest(c, "Invalid request body: "+err.Error())
 	}
 
 	// Validate required fields
@@ -601,7 +601,7 @@ func (h *ReportHandler) RejectReport(c *fiber.Ctx) error {
 		Reason string `json:"reason"`
 	}
 	if err := c.BodyParser(&body); err != nil {
-		return response.BadRequest(c, "Invalid request body")
+		return response.BadRequest(c, "Invalid request body: "+err.Error())
 	}
 
 	if body.Reason == "" {
@@ -640,7 +640,7 @@ func (h *ReportHandler) SchedulePublish(c *fiber.Ctx) error {
 		ScheduledAt time.Time `json:"scheduled_at"`
 	}
 	if err := c.BodyParser(&body); err != nil {
-		return response.BadRequest(c, "Invalid request body")
+		return response.BadRequest(c, "Invalid request body: "+err.Error())
 	}
 
 	if body.ScheduledAt.IsZero() {
