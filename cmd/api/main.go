@@ -60,6 +60,9 @@ import (
 
 // @tag.name Categories
 // @tag.description Operations related to report categories and hierarchies
+
+// @tag.name Authors
+// @tag.description Operations related to report authors and analysts
 func main() {
 	// Load .env file
 	if err := godotenv.Load(); err != nil {
@@ -96,12 +99,14 @@ func main() {
 	userRepo := repository.NewUserRepository(db.DB)
 	categoryRepo := repository.NewCategoryRepository(db.DB)
 	reportRepo := repository.NewReportRepository(db.DB)
+	authorRepo := repository.NewAuthorRepository(db.DB)
 
 	// Initialize services
 	userService := service.NewUserService(userRepo)
 	authService := service.NewAuthService(userRepo, &cfg.Auth)
 	categoryService := service.NewCategoryService(categoryRepo)
 	reportService := service.NewReportService(reportRepo)
+	authorService := service.NewAuthorService(authorRepo)
 
 	// Initialize handlers
 	healthHandler := handler.NewHealthHandler()
@@ -109,6 +114,7 @@ func main() {
 	userHandler := handler.NewUserHandler(userService)
 	categoryHandler := handler.NewCategoryHandler(categoryService)
 	reportHandler := handler.NewReportHandler(reportService)
+	authorHandler := handler.NewAuthorHandler(authorService)
 
 	// Initialize Fiber app
 	app := fiber.New(fiber.Config{
@@ -164,16 +170,17 @@ func main() {
 	v1.Put("/reports/:id", middleware.RequireAuth(authService), middleware.RequireRole("admin", "editor"), reportHandler.Update)
 	v1.Delete("/reports/:id", middleware.RequireAuth(authService), middleware.RequireRole("admin"), reportHandler.Delete)
 
-	// Workflow management routes (admin/editor only)
-	v1.Post("/reports/:id/submit-review", middleware.RequireAuth(authService), middleware.RequireRole("admin", "editor"), reportHandler.SubmitForReview)
-	v1.Post("/reports/:id/approve", middleware.RequireAuth(authService), middleware.RequireRole("admin"), reportHandler.ApproveReport)
-	v1.Post("/reports/:id/reject", middleware.RequireAuth(authService), middleware.RequireRole("admin"), reportHandler.RejectReport)
-	v1.Post("/reports/:id/schedule", middleware.RequireAuth(authService), middleware.RequireRole("admin"), reportHandler.SchedulePublish)
-
 	// Category routes (public read, protected write)
 	v1.Get("/categories", categoryHandler.GetAll)
 	v1.Get("/categories/:slug", categoryHandler.GetBySlug)
 	v1.Get("/categories/:slug/reports", reportHandler.GetByCategorySlug)
+
+	// Author routes (authenticated read, protected write)
+	v1.Get("/authors", middleware.RequireAuth(authService), authorHandler.GetAll)
+	v1.Get("/authors/:id", middleware.RequireAuth(authService), authorHandler.GetByID)
+	v1.Post("/authors", middleware.RequireAuth(authService), middleware.RequireRole("admin", "editor"), authorHandler.Create)
+	v1.Put("/authors/:id", middleware.RequireAuth(authService), middleware.RequireRole("admin", "editor"), authorHandler.Update)
+	v1.Delete("/authors/:id", middleware.RequireAuth(authService), middleware.RequireRole("admin"), authorHandler.Delete)
 
 	// Graceful shutdown
 	c := make(chan os.Signal, 1)

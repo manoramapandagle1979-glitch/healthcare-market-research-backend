@@ -90,8 +90,6 @@ GET /api/v1/reports?page=1&limit=10&status=published&category=Pharmaceuticals
       "summary": "Comprehensive analysis of the global healthcare market...",
       "description": "Detailed market research report...",
       "category_id": 5,
-      "sub_category_id": 12,
-      "market_segment_id": 3,
       "geography": ["Global", "North America", "Europe"],
       "publish_date": "2024-01-15",
       "price": 3490,
@@ -211,8 +209,6 @@ GET /api/v1/reports/global-healthcare-market-analysis-2024
 
     // Additional relation fields
     "category_name": "Pharmaceuticals",
-    "sub_category_name": "Oncology",
-    "market_segment_name": "Clinical Trials",
     "author": {
       "id": 1,
       "email": "researcher@example.com",
@@ -699,165 +695,6 @@ import { deleteReport } from '@/lib/api/reports.api';
 const response = await deleteReport(158);
 console.log(response.data.message); // "Report deleted successfully"
 ```
-
----
-
-## 8. Workflow Management Endpoints
-
-### Workflow Status Values
-
-The workflow system provides structured approval and publishing management:
-
-- **`draft`** - Initial state, editable by creator
-- **`pending_review`** - Submitted for review, awaiting admin approval
-- **`approved`** - Approved by admin, ready to publish
-- **`rejected`** - Rejected by admin with reason, requires changes
-- **`scheduled`** - Approved and scheduled for future publish
-- **`published`** - Live and publicly visible
-- **`archived`** - Removed from public view but preserved
-
-### Submit Report for Review
-
-**Endpoint:** `POST /api/v1/reports/{id}/submit-review`
-**Auth:** ✅ Required (admin/editor)
-
-Changes workflow_status from 'draft' or 'rejected' to 'pending_review'.
-
-**Request Example:**
-```http
-POST /api/v1/reports/15/submit-review
-Authorization: Bearer {access_token}
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "data": "Report submitted for review"
-}
-```
-
----
-
-### Approve Report
-
-**Endpoint:** `POST /api/v1/reports/{id}/approve`
-**Auth:** ✅ Required (admin only)
-
-Changes workflow_status to 'approved', sets approved_by and approved_at.
-
-**Request Example:**
-```http
-POST /api/v1/reports/15/approve
-Authorization: Bearer {access_token}
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "data": "Report approved"
-}
-```
-
----
-
-### Reject Report
-
-**Endpoint:** `POST /api/v1/reports/{id}/reject`
-**Auth:** ✅ Required (admin only)
-
-Changes workflow_status to 'rejected', appends reason to internal_notes.
-
-**Request Body:**
-```json
-{
-  "reason": "Missing market size data for APAC region"
-}
-```
-
-**Request Example:**
-```http
-POST /api/v1/reports/15/reject
-Authorization: Bearer {access_token}
-Content-Type: application/json
-
-{
-  "reason": "Missing market size data for APAC region"
-}
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "data": "Report rejected"
-}
-```
-
-**Internal Notes Entry:**
-```
-[2024-01-20 15:30:00] Rejected by user 1: Missing market size data for APAC region
-```
-
----
-
-### Schedule Publish
-
-**Endpoint:** `POST /api/v1/reports/{id}/schedule`
-**Auth:** ✅ Required (admin only)
-
-Sets scheduled_publish_at and changes workflow_status to 'scheduled'. Report must be in 'approved' status.
-
-**Request Body:**
-```json
-{
-  "scheduled_at": "2024-02-01T10:00:00Z"
-}
-```
-
-**Request Example:**
-```http
-POST /api/v1/reports/15/schedule
-Authorization: Bearer {access_token}
-Content-Type: application/json
-
-{
-  "scheduled_at": "2024-02-01T10:00:00Z"
-}
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "data": "Report scheduled for publishing"
-}
-```
-
----
-
-### Workflow State Transitions
-
-```
-draft → pending_review → approved → published
-  ↓           ↓              ↓
-  ←─────── rejected ────────←
-
-approved → scheduled → published
-
-published → archived
-```
-
-**Valid Transitions:**
-- `draft` → `pending_review` (via submit-review)
-- `pending_review` → `approved` (via approve)
-- `pending_review` → `rejected` (via reject)
-- `rejected` → `draft` (manual update)
-- `approved` → `published` (manual update or publish action)
-- `approved` → `scheduled` (via schedule)
-- `scheduled` → `published` (automatic or manual)
-- `published` → `archived` (manual update)
 
 ---
 

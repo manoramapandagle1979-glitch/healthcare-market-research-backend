@@ -16,14 +16,12 @@ type ReportFilters struct {
 	Category    string   // Category slug
 	Geography   []string // Array of geography strings
 	Search      string   // Full-text search query
-	AccessType  string   // 'free' or 'paid'
 	Page        int
 	Limit       int
 
 	// Admin filters
 	CreatedBy       *uint      // Filter by creator user ID
 	UpdatedBy       *uint      // Filter by last updater user ID
-	WorkflowStatus  string     // Filter by workflow status
 	CreatedAfter    *time.Time // Date range start
 	CreatedBefore   *time.Time // Date range end
 	UpdatedAfter    *time.Time
@@ -38,6 +36,7 @@ type ReportRepository interface {
 	GetAllWithFilters(filters ReportFilters) ([]report.Report, int64, error)
 	GetBySlug(slug string) (*report.ReportWithRelations, error)
 	GetByID(id uint) (*report.Report, error)
+	GetByIDWithRelations(id uint) (*report.ReportWithRelations, error)
 	GetByCategorySlug(categorySlug string, page, limit int) ([]report.Report, int64, error)
 	Search(query string, page, limit int) ([]report.Report, int64, error)
 	GetChartsByReportID(reportID uint) ([]report.ChartMetadata, error)
@@ -64,8 +63,8 @@ func (r *reportRepository) GetAll(page, limit int) ([]report.Report, int64, erro
 
 	offset := (page - 1) * limit
 
-	// Default: only show published reports
-	countSQL := "SELECT COUNT(*) FROM reports WHERE status = 'published'"
+	// Return all reports regardless of status
+	countSQL := "SELECT COUNT(*) FROM reports"
 	if err := r.db.Raw(countSQL).Scan(&total).Error; err != nil {
 		return nil, 0, err
 	}
@@ -73,7 +72,6 @@ func (r *reportRepository) GetAll(page, limit int) ([]report.Report, int64, erro
 	querySQL := `
 		SELECT *
 		FROM reports
-		WHERE status = 'published'
 		ORDER BY COALESCE(publish_date, updated_at) DESC
 		LIMIT ? OFFSET ?
 	`
@@ -99,9 +97,6 @@ func (r *reportRepository) GetAllWithFilters(filters ReportFilters) ([]report.Re
 		conditions = append(conditions, "r.status = ?")
 		args = append(args, filters.Status)
 		countArgs = append(countArgs, filters.Status)
-	} else {
-		// Default to published only for public API
-		conditions = append(conditions, "r.status = 'published'")
 	}
 
 	// Category filter
@@ -120,13 +115,6 @@ func (r *reportRepository) GetAllWithFilters(filters ReportFilters) ([]report.Re
 			countArgs = append(countArgs, geo)
 		}
 		conditions = append(conditions, fmt.Sprintf("(%s)", strings.Join(geographyConditions, " OR ")))
-	}
-
-	// Access type filter
-	if filters.AccessType != "" {
-		conditions = append(conditions, "r.access_type = ?")
-		args = append(args, filters.AccessType)
-		countArgs = append(countArgs, filters.AccessType)
 	}
 
 	// Search filter
@@ -148,12 +136,6 @@ func (r *reportRepository) GetAllWithFilters(filters ReportFilters) ([]report.Re
 		conditions = append(conditions, "r.updated_by = ?")
 		args = append(args, *filters.UpdatedBy)
 		countArgs = append(countArgs, *filters.UpdatedBy)
-	}
-
-	if filters.WorkflowStatus != "" {
-		conditions = append(conditions, "r.workflow_status = ?")
-		args = append(args, filters.WorkflowStatus)
-		countArgs = append(countArgs, filters.WorkflowStatus)
 	}
 
 	// Date range filters
@@ -223,20 +205,15 @@ func (r *reportRepository) GetAllWithFilters(filters ReportFilters) ([]report.Re
 func (r *reportRepository) GetBySlug(slug string) (*report.ReportWithRelations, error) {
 	var result report.ReportWithRelations
 
-	// Fetch the main report with all JSONB fields using GORM
-	err := r.db.Table("reports").
-		Select(`
-			reports.*,
-			categories.name as category_name,
-			COALESCE(sub_categories.name, '') as sub_category_name,
-			COALESCE(market_segments.name, '') as market_segment_name
-		`).
-		Joins("INNER JOIN categories ON reports.category_id = categories.id AND categories.is_active = true").
-		Joins("LEFT JOIN sub_categories ON reports.sub_category_id = sub_categories.id AND sub_categories.is_active = true").
-		Joins("LEFT JOIN market_segments ON reports.market_segment_id = market_segments.id AND market_segments.is_active = true").
-		Where("reports.slug = ? AND reports.status = 'published'", slug).
-		First(&result).Error
+	// Use raw SQL to properly handle JSONB fields and joins
+	querySQL := `
+		SELECT r.*, c.name as category_name
+		FROM reports r
+		INNER JOIN categories c ON r.category_id = c.id AND c.is_active = true
+		WHERE r.slug = $1
+	`
 
+	err := r.db.Raw(querySQL, slug).Scan(&result).Error
 	if err != nil {
 		return nil, err
 	}
@@ -262,7 +239,7 @@ func (r *reportRepository) GetByCategorySlug(categorySlug string, page, limit in
 		SELECT COUNT(*)
 		FROM reports r
 		INNER JOIN categories c ON r.category_id = c.id
-		WHERE c.slug = ? AND c.is_active = true AND r.status = 'published'
+		WHERE c.slug = ? AND c.is_active = true
 	`
 	if err := r.db.Raw(countSQL, categorySlug).Scan(&total).Error; err != nil {
 		return nil, 0, err
@@ -272,7 +249,7 @@ func (r *reportRepository) GetByCategorySlug(categorySlug string, page, limit in
 		SELECT r.*
 		FROM reports r
 		INNER JOIN categories c ON r.category_id = c.id
-		WHERE c.slug = ? AND c.is_active = true AND r.status = 'published'
+		WHERE c.slug = ? AND c.is_active = true
 		ORDER BY COALESCE(r.publish_date, r.updated_at) DESC
 		LIMIT ? OFFSET ?
 	`
@@ -292,8 +269,7 @@ func (r *reportRepository) Search(query string, page, limit int) ([]report.Repor
 	countSQL := `
 		SELECT COUNT(*)
 		FROM reports
-		WHERE status = 'published'
-		AND (title ILIKE ? OR description ILIKE ? OR summary ILIKE ?)
+		WHERE (title ILIKE ? OR description ILIKE ? OR summary ILIKE ?)
 	`
 	if err := r.db.Raw(countSQL, searchPattern, searchPattern, searchPattern).Scan(&total).Error; err != nil {
 		return nil, 0, err
@@ -302,8 +278,7 @@ func (r *reportRepository) Search(query string, page, limit int) ([]report.Repor
 	querySQL := `
 		SELECT *
 		FROM reports
-		WHERE status = 'published'
-		AND (title ILIKE ? OR description ILIKE ? OR summary ILIKE ?)
+		WHERE (title ILIKE ? OR description ILIKE ? OR summary ILIKE ?)
 		ORDER BY COALESCE(publish_date, updated_at) DESC
 		LIMIT ? OFFSET ?
 	`
@@ -348,6 +323,33 @@ func (r *reportRepository) GetByID(id uint) (*report.Report, error) {
 		return nil, err
 	}
 	return &rep, nil
+}
+
+func (r *reportRepository) GetByIDWithRelations(id uint) (*report.ReportWithRelations, error) {
+	var result report.ReportWithRelations
+
+	// Use raw SQL to properly handle JSONB fields and joins
+	querySQL := `
+		SELECT r.*, c.name as category_name
+		FROM reports r
+		INNER JOIN categories c ON r.category_id = c.id AND c.is_active = true
+		WHERE r.id = $1
+	`
+
+	err := r.db.Raw(querySQL, id).Scan(&result).Error
+	if err != nil {
+		return nil, err
+	}
+
+	// Get charts
+	charts, _ := r.GetChartsByReportID(result.ID)
+	result.Charts = charts
+
+	// Get versions
+	versions, _ := r.GetVersionsByReportID(result.ID)
+	result.Versions = versions
+
+	return &result, nil
 }
 
 // Version history methods

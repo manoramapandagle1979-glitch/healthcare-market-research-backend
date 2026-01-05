@@ -12,18 +12,13 @@ import (
 type ReportService interface {
 	GetAll(page, limit int) ([]report.Report, int64, error)
 	GetAllWithFilters(filters repository.ReportFilters) ([]report.Report, int64, error)
+	GetByID(id uint) (*report.ReportWithRelations, error)
 	GetBySlug(slug string) (*report.ReportWithRelations, error)
 	GetByCategorySlug(categorySlug string, page, limit int) ([]report.Report, int64, error)
 	Search(query string, page, limit int) ([]report.Report, int64, error)
 	Create(rep *report.Report, userID uint) error
 	Update(id uint, rep *report.Report, userID uint) error
 	Delete(id uint) error
-
-	// Workflow management
-	SubmitForReview(reportID uint, userID uint) error
-	ApproveReport(reportID uint, userID uint) error
-	RejectReport(reportID uint, userID uint, reason string) error
-	SchedulePublish(reportID uint, scheduledAt time.Time) error
 }
 
 type reportService struct {
@@ -63,6 +58,23 @@ func (s *reportService) GetAll(page, limit int) ([]report.Report, int64, error) 
 	}
 
 	return res.Reports, res.Total, nil
+}
+
+func (s *reportService) GetByID(id uint) (*report.ReportWithRelations, error) {
+	cacheKey := fmt.Sprintf("report:id:%d", id)
+
+	var rep report.ReportWithRelations
+
+	// Use singleflight-protected cache-aside pattern
+	err := cache.GetOrSet(cacheKey, &rep, 30*time.Minute, func() (interface{}, error) {
+		return s.repo.GetByIDWithRelations(id)
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &rep, nil
 }
 
 func (s *reportService) GetBySlug(slug string) (*report.ReportWithRelations, error) {
@@ -127,7 +139,6 @@ func (s *reportService) Create(rep *report.Report, userID uint) error {
 	// Set user tracking fields
 	rep.CreatedBy = &userID
 	rep.UpdatedBy = &userID
-	rep.WorkflowStatus = report.WorkflowDraft
 
 	err := s.repo.Create(rep)
 	if err != nil {
@@ -160,13 +171,6 @@ func (s *reportService) Update(id uint, rep *report.Report, userID uint) error {
 
 	// Check if status is changing from draft to published
 	statusChanged := existing.Status == "draft" && rep.Status == "published"
-
-	// Check if workflow is being approved
-	if rep.WorkflowStatus == report.WorkflowApproved && existing.WorkflowStatus != report.WorkflowApproved {
-		rep.ApprovedBy = &userID
-		now := time.Now()
-		rep.ApprovedAt = &now
-	}
 
 	// Update the report
 	err = s.repo.Update(rep)
@@ -211,8 +215,9 @@ func (s *reportService) Update(id uint, rep *report.Report, userID uint) error {
 	cache.DeletePattern("reports:total")
 	cache.DeletePattern(fmt.Sprintf("reports:category:*"))
 
-	// Invalidate the specific report cache (old slug)
+	// Invalidate the specific report cache (old slug and ID)
 	cache.Delete(fmt.Sprintf("report:slug:%s", existing.Slug))
+	cache.Delete(fmt.Sprintf("report:id:%d", id))
 
 	// Invalidate new slug if it changed
 	if rep.Slug != existing.Slug {
@@ -239,143 +244,7 @@ func (s *reportService) Delete(id uint) error {
 	cache.DeletePattern("reports:total")
 	cache.DeletePattern(fmt.Sprintf("reports:category:*"))
 	cache.Delete(fmt.Sprintf("report:slug:%s", existing.Slug))
+	cache.Delete(fmt.Sprintf("report:id:%d", id))
 
 	return nil
-}
-
-// Workflow Management Methods
-
-func (s *reportService) SubmitForReview(reportID uint, userID uint) error {
-	// Get the report
-	rep, err := s.repo.GetByID(reportID)
-	if err != nil {
-		return err
-	}
-
-	// Validate workflow transition
-	if rep.WorkflowStatus != report.WorkflowDraft && rep.WorkflowStatus != report.WorkflowRejected {
-		return fmt.Errorf("can only submit reports with status 'draft' or 'rejected' for review")
-	}
-
-	// Update workflow status
-	rep.WorkflowStatus = report.WorkflowPendingReview
-	rep.UpdatedBy = &userID
-
-	// Update in database
-	err = s.repo.Update(rep)
-	if err != nil {
-		return err
-	}
-
-	// Invalidate caches
-	s.invalidateCaches(rep)
-
-	return nil
-}
-
-func (s *reportService) ApproveReport(reportID uint, userID uint) error {
-	// Get the report
-	rep, err := s.repo.GetByID(reportID)
-	if err != nil {
-		return err
-	}
-
-	// Validate workflow transition
-	if rep.WorkflowStatus != report.WorkflowPendingReview {
-		return fmt.Errorf("can only approve reports with status 'pending_review'")
-	}
-
-	// Update workflow status
-	rep.WorkflowStatus = report.WorkflowApproved
-	rep.UpdatedBy = &userID
-	rep.ApprovedBy = &userID
-	now := time.Now()
-	rep.ApprovedAt = &now
-
-	// Update in database
-	err = s.repo.Update(rep)
-	if err != nil {
-		return err
-	}
-
-	// Invalidate caches
-	s.invalidateCaches(rep)
-
-	return nil
-}
-
-func (s *reportService) RejectReport(reportID uint, userID uint, reason string) error {
-	// Get the report
-	rep, err := s.repo.GetByID(reportID)
-	if err != nil {
-		return err
-	}
-
-	// Validate workflow transition
-	if rep.WorkflowStatus != report.WorkflowPendingReview {
-		return fmt.Errorf("can only reject reports with status 'pending_review'")
-	}
-
-	// Update workflow status
-	rep.WorkflowStatus = report.WorkflowRejected
-	rep.UpdatedBy = &userID
-
-	// Append reason to internal notes
-	timestamp := time.Now().Format("2006-01-02 15:04:05")
-	if rep.InternalNotes != "" {
-		rep.InternalNotes += "\n\n"
-	}
-	rep.InternalNotes += fmt.Sprintf("[%s] Rejected by user %d: %s", timestamp, userID, reason)
-
-	// Update in database
-	err = s.repo.Update(rep)
-	if err != nil {
-		return err
-	}
-
-	// Invalidate caches
-	s.invalidateCaches(rep)
-
-	return nil
-}
-
-func (s *reportService) SchedulePublish(reportID uint, scheduledAt time.Time) error {
-	// Get the report
-	rep, err := s.repo.GetByID(reportID)
-	if err != nil {
-		return err
-	}
-
-	// Validate workflow: must be approved
-	if rep.WorkflowStatus != report.WorkflowApproved {
-		return fmt.Errorf("can only schedule reports with status 'approved'")
-	}
-
-	// Validate scheduled time is in the future
-	if scheduledAt.Before(time.Now()) {
-		return fmt.Errorf("scheduled publish time must be in the future")
-	}
-
-	// Update workflow status and scheduled time
-	rep.WorkflowStatus = report.WorkflowScheduled
-	rep.ScheduledPublishAt = &scheduledAt
-
-	// Update in database
-	err = s.repo.Update(rep)
-	if err != nil {
-		return err
-	}
-
-	// Invalidate caches
-	s.invalidateCaches(rep)
-
-	return nil
-}
-
-// Helper method to invalidate caches
-func (s *reportService) invalidateCaches(rep *report.Report) {
-	cache.DeletePattern("reports:list:*")
-	cache.DeletePattern("reports:total")
-	cache.DeletePattern(fmt.Sprintf("reports:category:*"))
-	cache.Delete(fmt.Sprintf("report:slug:%s", rep.Slug))
 }

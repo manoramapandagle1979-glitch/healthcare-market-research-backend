@@ -211,8 +211,6 @@ The generated files will be placed in the `docs/` directory.
 
 The database includes the following tables:
 - `categories` - Main categories
-- `sub_categories` - Sub-categories linked to categories
-- `market_segments` - Market segments linked to sub-categories
 - `reports` - Market research reports
 - `chart_metadata` - Chart information for reports
 

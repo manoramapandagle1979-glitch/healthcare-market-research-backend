@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/healthcare-market-research/backend/internal/config"
+	"github.com/healthcare-market-research/backend/internal/domain/author"
 	"github.com/healthcare-market-research/backend/internal/domain/category"
 	"github.com/healthcare-market-research/backend/internal/domain/report"
 	"github.com/healthcare-market-research/backend/internal/domain/user"
@@ -71,9 +72,15 @@ func Migrate() error {
 		return fmt.Errorf("database not initialized")
 	}
 
+	// Drop sub_categories and market_segments tables if they exist
+	DB.Exec("DROP TABLE IF EXISTS market_segments CASCADE")
+	DB.Exec("DROP TABLE IF EXISTS sub_categories CASCADE")
+
+	// Run AutoMigrate to create/update tables
 	err := DB.AutoMigrate(
 		&user.User{},
 		&category.Category{},
+		&author.Author{},
 		&report.Report{},
 		&report.ChartMetadata{},
 		&report.ReportVersion{},
@@ -82,6 +89,10 @@ func Migrate() error {
 	if err != nil {
 		return fmt.Errorf("failed to run migrations: %w", err)
 	}
+
+	// Clean up old columns if they exist (after tables are created)
+	DB.Exec("ALTER TABLE IF EXISTS reports DROP COLUMN IF EXISTS sub_category_id")
+	DB.Exec("ALTER TABLE IF EXISTS reports DROP COLUMN IF EXISTS market_segment_id")
 
 	log.Println("Database migrations completed successfully")
 	return nil
