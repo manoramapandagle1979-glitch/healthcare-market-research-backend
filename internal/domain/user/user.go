@@ -49,10 +49,11 @@ type RefreshRequest struct {
 
 // RefreshResponse represents the token refresh response
 type RefreshResponse struct {
-	AccessToken  string `json:"access_token"`
-	RefreshToken string `json:"refresh_token"`
-	TokenType    string `json:"token_type"`
-	ExpiresIn    int64  `json:"expires_in"` // seconds
+	AccessToken  string        `json:"access_token"`
+	RefreshToken string        `json:"refresh_token"`
+	TokenType    string        `json:"token_type"`
+	ExpiresIn    int64         `json:"expires_in"` // seconds
+	User         *UserResponse `json:"user"`
 }
 
 // LogoutRequest represents the logout request

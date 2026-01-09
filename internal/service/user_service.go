@@ -24,6 +24,7 @@ type UserService interface {
 	GetByID(id uint) (*user.UserResponse, error)
 	GetByEmail(email string) (*user.User, error)
 	GetAll(page, limit int) ([]user.UserResponse, int64, error)
+	GetByRole(role string, page, limit int) ([]user.UserResponse, int64, error)
 	Update(id uint, req *user.UpdateUserRequest) error
 	Delete(id uint) error
 }
@@ -134,6 +135,39 @@ func (s *userService) GetAll(page, limit int) ([]user.UserResponse, int64, error
 
 	if err != nil {
 		return nil, 0, fmt.Errorf("failed to get users: %w", err)
+	}
+
+	// Convert to UserResponse
+	userResponses := make([]user.UserResponse, len(res.Users))
+	for i, u := range res.Users {
+		userResponses[i] = *u.ToUserResponse()
+	}
+
+	return userResponses, res.Total, nil
+}
+
+// GetByRole retrieves users by role with pagination and caching
+func (s *userService) GetByRole(role string, page, limit int) ([]user.UserResponse, int64, error) {
+	cacheKey := fmt.Sprintf("users:role:%s:%d:%d", role, page, limit)
+
+	type result struct {
+		Users []user.User `json:"users"`
+		Total int64       `json:"total"`
+	}
+
+	var res result
+
+	// Use cache-aside pattern
+	err := cache.GetOrSet(cacheKey, &res, 10*time.Minute, func() (interface{}, error) {
+		users, total, err := s.repo.GetByRole(role, page, limit)
+		if err != nil {
+			return nil, err
+		}
+		return result{Users: users, Total: total}, nil
+	})
+
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to get users by role: %w", err)
 	}
 
 	// Convert to UserResponse

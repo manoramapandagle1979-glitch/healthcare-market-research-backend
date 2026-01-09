@@ -13,6 +13,7 @@ type UserRepository interface {
 	GetByID(id uint) (*user.User, error)
 	GetByEmail(email string) (*user.User, error)
 	GetAll(page, limit int) ([]user.User, int64, error)
+	GetByRole(role string, page, limit int) ([]user.User, int64, error)
 	Update(u *user.User) error
 	Delete(id uint) error
 	UpdateLastLogin(id uint) error
@@ -67,6 +68,29 @@ func (r *userRepository) GetAll(page, limit int) ([]user.User, int64, error) {
 	// Fetch users with pagination
 	err := r.db.Where("is_active = ?", true).
 		Order("created_at DESC").
+		Limit(limit).
+		Offset(offset).
+		Find(&users).Error
+
+	return users, total, err
+}
+
+// GetByRole retrieves users by role with pagination
+func (r *userRepository) GetByRole(role string, page, limit int) ([]user.User, int64, error) {
+	var users []user.User
+	var total int64
+
+	offset := (page - 1) * limit
+
+	query := r.db.Model(&user.User{}).Where("is_active = ? AND role = ?", true, role)
+
+	// Count total active users with the specified role
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	// Fetch users with pagination
+	err := query.Order("created_at DESC").
 		Limit(limit).
 		Offset(offset).
 		Find(&users).Error

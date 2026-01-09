@@ -155,6 +155,7 @@ func (s *authService) RefreshToken(refreshTokenStr string) (*user.RefreshRespons
 		RefreshToken: newRefreshToken,
 		TokenType:    "Bearer",
 		ExpiresIn:    auth.GetTokenExpiry(s.cfg.AccessTokenExpiry),
+		User:         u.ToUserResponse(),
 	}, nil
 }
 

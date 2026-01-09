@@ -1,5 +1,43 @@
 basePath: /
 definitions:
+  audit.AuditLogResponse:
+    properties:
+      action:
+        type: string
+      changes:
+        additionalProperties:
+          $ref: '#/definitions/audit.FieldChange'
+        type: object
+      created_at:
+        type: string
+      entity_id:
+        type: integer
+      entity_type:
+        type: string
+      error_message:
+        type: string
+      id:
+        type: integer
+      ip_address:
+        type: string
+      request_id:
+        type: string
+      status:
+        type: string
+      user_agent:
+        type: string
+      user_email:
+        type: string
+      user_id:
+        type: integer
+      user_role:
+        type: string
+    type: object
+  audit.FieldChange:
+    properties:
+      new: {}
+      old: {}
+    type: object
   author.Author:
     properties:
       bio:
@@ -399,6 +437,29 @@ definitions:
       success:
         type: boolean
     type: object
+  role.Permission:
+    properties:
+      description:
+        type: string
+      name:
+        type: string
+    type: object
+  role.RoleInfo:
+    properties:
+      description:
+        type: string
+      display_name:
+        type: string
+      level:
+        description: Hierarchy level (higher = more permissions)
+        type: integer
+      name:
+        type: string
+      permissions:
+        items:
+          $ref: '#/definitions/role.Permission'
+        type: array
+    type: object
   user.CreateUserRequest:
     properties:
       email:
@@ -468,6 +529,8 @@ definitions:
         type: string
       token_type:
         type: string
+      user:
+        $ref: '#/definitions/user.UserResponse'
     type: object
   user.UpdateUserRequest:
     properties:
@@ -520,6 +583,133 @@ info:
   title: Healthcare Market Research API
   version: "1.0"
 paths:
+  /api/v1/audit-logs:
+    get:
+      description: Get all audit logs with filtering and pagination (admin only)
+      parameters:
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: Items per page
+        in: query
+        name: limit
+        type: integer
+      - description: Filter by user ID
+        in: query
+        name: user_id
+        type: integer
+      - description: Filter by action (e.g., auth.login, user.create)
+        in: query
+        name: action
+        type: string
+      - description: Filter by entity type (e.g., user, report)
+        in: query
+        name: entity_type
+        type: string
+      - description: Filter by entity ID
+        in: query
+        name: entity_id
+        type: integer
+      - description: Filter by status (success or failure)
+        in: query
+        name: status
+        type: string
+      - description: Filter by start date (RFC3339 format)
+        in: query
+        name: start_date
+        type: string
+      - description: Filter by end date (RFC3339 format)
+        in: query
+        name: end_date
+        type: string
+      - description: Filter by IP address
+        in: query
+        name: ip_address
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/audit.AuditLogResponse'
+                  type: array
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                error:
+                  type: string
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Get all audit logs
+      tags:
+      - Audit
+  /api/v1/audit-logs/{id}:
+    get:
+      description: Get a specific audit log by ID (admin only)
+      parameters:
+      - description: Audit Log ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/audit.AuditLogResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "404":
+          description: Not Found
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                error:
+                  type: string
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Get audit log by ID
+      tags:
+      - Audit
   /api/v1/auth/login:
     post:
       consumes:
@@ -1481,6 +1671,72 @@ paths:
       summary: Get report by slug or ID
       tags:
       - Reports
+  /api/v1/roles:
+    get:
+      description: Get all available roles with their permissions and descriptions
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/role.RoleInfo'
+                  type: array
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                error:
+                  type: string
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Get all roles
+      tags:
+      - Roles
+  /api/v1/roles/{name}:
+    get:
+      description: Get detailed information about a specific role
+      parameters:
+      - description: Role name (admin, editor, or viewer)
+        in: path
+        name: name
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/role.RoleInfo'
+              type: object
+        "404":
+          description: Not Found
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                error:
+                  type: string
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Get role by name
+      tags:
+      - Roles
   /api/v1/search:
     get:
       consumes:
@@ -1708,6 +1964,67 @@ paths:
       summary: Delete a user
       tags:
       - Users
+    get:
+      description: Get a specific user by their ID (admin only)
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/user.UserResponse'
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "404":
+          description: Not Found
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                error:
+                  type: string
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Get user by ID
+      tags:
+      - Users
     put:
       consumes:
       - application/json
@@ -1777,6 +2094,71 @@ paths:
       security:
       - BearerAuth: []
       summary: Update a user
+      tags:
+      - Users
+  /api/v1/users/by-role/{role}:
+    get:
+      description: Get all users with a specific role (admin only)
+      parameters:
+      - description: Role name (admin, editor, or viewer)
+        in: path
+        name: role
+        required: true
+        type: string
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: Items per page
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/user.UserResponse'
+                  type: array
+              type: object
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                error:
+                  type: string
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Get users by role
       tags:
       - Users
   /api/v1/users/me:
@@ -1853,3 +2235,7 @@ tags:
   name: Categories
 - description: Operations related to report authors and analysts
   name: Authors
+- description: Audit log management and tracking
+  name: Audit
+- description: Role and permission information
+  name: Roles

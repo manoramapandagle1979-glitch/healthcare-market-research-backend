@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/healthcare-market-research/backend/internal/config"
+	"github.com/healthcare-market-research/backend/internal/domain/audit"
 	"github.com/healthcare-market-research/backend/internal/domain/author"
 	"github.com/healthcare-market-research/backend/internal/domain/category"
 	"github.com/healthcare-market-research/backend/internal/domain/report"
@@ -84,6 +85,7 @@ func Migrate() error {
 		&report.Report{},
 		&report.ChartMetadata{},
 		&report.ReportVersion{},
+		&audit.AuditLog{},
 	)
 
 	if err != nil {

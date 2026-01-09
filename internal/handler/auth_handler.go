@@ -4,6 +4,7 @@ import (
 	"strings"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/healthcare-market-research/backend/internal/domain/audit"
 	"github.com/healthcare-market-research/backend/internal/domain/user"
 	"github.com/healthcare-market-research/backend/internal/middleware"
 	"github.com/healthcare-market-research/backend/internal/service"
@@ -11,11 +12,15 @@ import (
 )
 
 type AuthHandler struct {
-	authService service.AuthService
+	authService  service.AuthService
+	auditService service.AuditService
 }
 
-func NewAuthHandler(authService service.AuthService) *AuthHandler {
-	return &AuthHandler{authService: authService}
+func NewAuthHandler(authService service.AuthService, auditService service.AuditService) *AuthHandler {
+	return &AuthHandler{
+		authService:  authService,
+		auditService: auditService,
+	}
 }
 
 // Login godoc
@@ -51,11 +56,29 @@ func (h *AuthHandler) Login(c *fiber.Ctx) error {
 	// Authenticate user
 	loginResp, err := h.authService.Login(req.Email, req.Password)
 	if err != nil {
+		// Log failed login attempt
+		auditCtx := middleware.GetAuditContext(c)
+		entry := middleware.NewAuditEntry(auditCtx, audit.ActionLoginFailed)
+		entry.Status = audit.StatusFailure
+		entry.ErrorMessage = "Invalid credentials"
+		entry.UserEmail = req.Email // Set email even though login failed
+		h.auditService.LogAsync(entry)
+
 		if err == service.ErrInvalidCredentials {
 			return response.Unauthorized(c, "Invalid email or password")
 		}
 		return response.InternalError(c, "Failed to authenticate user")
 	}
+
+	// Log successful login
+	auditCtx := middleware.GetAuditContext(c)
+	entry := middleware.NewAuditEntry(auditCtx, audit.ActionLogin)
+	entry.UserID = &loginResp.User.ID
+	entry.UserEmail = loginResp.User.Email
+	entry.UserRole = loginResp.User.Role
+	entry.EntityType = audit.EntityUser
+	entry.EntityID = &loginResp.User.ID
+	h.auditService.LogAsync(entry)
 
 	return response.Success(c, loginResp)
 }
@@ -92,6 +115,16 @@ func (h *AuthHandler) Refresh(c *fiber.Ctx) error {
 		}
 		return response.InternalError(c, "Failed to refresh token")
 	}
+
+	// Log successful token refresh
+	auditCtx := middleware.GetAuditContext(c)
+	entry := middleware.NewAuditEntry(auditCtx, audit.ActionTokenRefresh)
+	entry.UserID = &refreshResp.User.ID
+	entry.UserEmail = refreshResp.User.Email
+	entry.UserRole = refreshResp.User.Role
+	entry.EntityType = audit.EntityUser
+	entry.EntityID = &refreshResp.User.ID
+	h.auditService.LogAsync(entry)
 
 	return response.Success(c, refreshResp)
 }
@@ -130,6 +163,13 @@ func (h *AuthHandler) Logout(c *fiber.Ctx) error {
 			// Just log the error
 		}
 	}
+
+	// Log successful logout
+	auditCtx := middleware.GetAuditContext(c)
+	entry := middleware.NewAuditEntry(auditCtx, audit.ActionLogout)
+	entry.EntityType = audit.EntityUser
+	entry.EntityID = &u.ID
+	h.auditService.LogAsync(entry)
 
 	return response.Success(c, map[string]string{
 		"message": "Logout successful",

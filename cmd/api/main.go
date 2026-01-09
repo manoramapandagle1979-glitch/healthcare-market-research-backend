@@ -63,6 +63,12 @@ import (
 
 // @tag.name Authors
 // @tag.description Operations related to report authors and analysts
+
+// @tag.name Audit
+// @tag.description Audit log management and tracking
+
+// @tag.name Roles
+// @tag.description Role and permission information
 func main() {
 	// Load .env file
 	if err := godotenv.Load(); err != nil {
@@ -100,6 +106,7 @@ func main() {
 	categoryRepo := repository.NewCategoryRepository(db.DB)
 	reportRepo := repository.NewReportRepository(db.DB)
 	authorRepo := repository.NewAuthorRepository(db.DB)
+	auditRepo := repository.NewAuditRepository(db.DB)
 
 	// Initialize services
 	userService := service.NewUserService(userRepo)
@@ -107,14 +114,17 @@ func main() {
 	categoryService := service.NewCategoryService(categoryRepo)
 	reportService := service.NewReportService(reportRepo)
 	authorService := service.NewAuthorService(authorRepo)
+	auditService := service.NewAuditService(auditRepo)
 
 	// Initialize handlers
 	healthHandler := handler.NewHealthHandler()
-	authHandler := handler.NewAuthHandler(authService)
-	userHandler := handler.NewUserHandler(userService)
+	authHandler := handler.NewAuthHandler(authService, auditService)
+	userHandler := handler.NewUserHandler(userService, auditService)
 	categoryHandler := handler.NewCategoryHandler(categoryService)
 	reportHandler := handler.NewReportHandler(reportService)
 	authorHandler := handler.NewAuthorHandler(authorService)
+	auditHandler := handler.NewAuditHandler(auditService)
+	roleHandler := handler.NewRoleHandler()
 
 	// Initialize Fiber app
 	app := fiber.New(fiber.Config{
@@ -158,6 +168,8 @@ func main() {
 	users := v1.Group("/users", middleware.RequireAuth(authService))
 	users.Get("/me", userHandler.GetMe)
 	users.Get("/", middleware.RequireRole("admin"), userHandler.GetAll)
+	users.Get("/by-role/:role", middleware.RequireRole("admin"), userHandler.GetByRole)
+	users.Get("/:id", middleware.RequireRole("admin"), userHandler.GetByID)
 	users.Post("/", middleware.RequireRole("admin"), userHandler.Create)
 	users.Put("/:id", middleware.RequireRole("admin"), userHandler.Update)
 	users.Delete("/:id", middleware.RequireRole("admin"), userHandler.Delete)
@@ -181,6 +193,16 @@ func main() {
 	v1.Post("/authors", middleware.RequireAuth(authService), middleware.RequireRole("admin", "editor"), authorHandler.Create)
 	v1.Put("/authors/:id", middleware.RequireAuth(authService), middleware.RequireRole("admin", "editor"), authorHandler.Update)
 	v1.Delete("/authors/:id", middleware.RequireAuth(authService), middleware.RequireRole("admin"), authorHandler.Delete)
+
+	// Audit log routes (admin only)
+	auditLogs := v1.Group("/audit-logs", middleware.RequireAuth(authService), middleware.RequireRole("admin"))
+	auditLogs.Get("/", auditHandler.GetAll)
+	auditLogs.Get("/:id", auditHandler.GetByID)
+
+	// Role routes (authenticated users)
+	roles := v1.Group("/roles", middleware.RequireAuth(authService))
+	roles.Get("/", roleHandler.GetAll)
+	roles.Get("/:name", roleHandler.GetByName)
 
 	// Graceful shutdown
 	c := make(chan os.Signal, 1)
