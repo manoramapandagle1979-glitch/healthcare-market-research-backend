@@ -188,12 +188,14 @@ func (s *reportService) Update(id uint, rep *report.Report, userID uint) error {
 		} else {
 			// Create new version
 			version := &report.ReportVersion{
-				ReportID:       id,
-				VersionNumber:  latestVersion + 1,
-				PublishedBy:    userID,
-				PublishedAt:    time.Now(),
-				Sections:       rep.Sections,
-				Metadata:       rep.Metadata,
+				ReportID:        id,
+				VersionNumber:   latestVersion + 1,
+				PublishedBy:     userID,
+				PublishedAt:     time.Now(),
+				Sections:        rep.Sections,
+				MetaTitle:       rep.MetaTitle,
+				MetaDescription: rep.MetaDescription,
+				MetaKeywords:    rep.MetaKeywords,
 			}
 
 			if err := s.repo.CreateVersion(version); err != nil {

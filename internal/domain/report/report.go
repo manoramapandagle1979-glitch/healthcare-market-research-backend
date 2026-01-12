@@ -114,36 +114,6 @@ func (f *FAQs) Scan(value interface{}) error {
 	return json.Unmarshal(bytes, &f)
 }
 
-// ReportMetadata contains SEO and social media metadata
-type ReportMetadata struct {
-	MetaTitle        string `json:"metaTitle,omitempty"`
-	MetaDescription  string `json:"metaDescription,omitempty"`
-	Keywords         []string `json:"keywords,omitempty"`
-	CanonicalURL     string `json:"canonicalUrl,omitempty"`
-	OGTitle          string `json:"ogTitle,omitempty"`
-	OGDescription    string `json:"ogDescription,omitempty"`
-	OGImage          string `json:"ogImage,omitempty"`
-	OGType           string `json:"ogType,omitempty"`
-	TwitterCard      string `json:"twitterCard,omitempty"`
-	SchemaJSON       string `json:"schemaJson,omitempty"`
-	RobotsDirective  string `json:"robotsDirective,omitempty"`
-}
-
-func (m ReportMetadata) Value() (driver.Value, error) {
-	return json.Marshal(m)
-}
-
-func (m *ReportMetadata) Scan(value interface{}) error {
-	if value == nil {
-		return nil
-	}
-	bytes, ok := value.([]byte)
-	if !ok {
-		return errors.New("type assertion to []byte failed")
-	}
-	return json.Unmarshal(bytes, &m)
-}
-
 // StringSlice is a custom type for string arrays
 type StringSlice []string
 
@@ -190,6 +160,7 @@ type UserReference struct {
 type Report struct {
 	ID              uint            `json:"id" gorm:"primaryKey"`
 	CategoryID      uint            `json:"category_id" gorm:"index;not null"`
+	CategoryName    string          `json:"category_name,omitempty" gorm:"->"`
 	Title           string          `json:"title" gorm:"type:varchar(500);not null"`
 	Slug            string          `json:"slug" gorm:"type:varchar(500);uniqueIndex;not null"`
 	Description     string          `json:"description" gorm:"type:text"`
@@ -231,9 +202,6 @@ type Report struct {
 	FAQs            FAQs            `json:"faqs,omitempty" gorm:"type:jsonb"`
 
 	// SEO Metadata
-	Metadata        ReportMetadata  `json:"metadata" gorm:"type:jsonb"`
-
-	// Legacy fields (kept for backward compatibility)
 	MetaTitle       string          `json:"meta_title,omitempty" gorm:"type:varchar(255)"`
 	MetaDescription string          `json:"meta_description,omitempty" gorm:"type:varchar(500)"`
 	MetaKeywords    string          `json:"meta_keywords,omitempty" gorm:"type:varchar(500)"`
@@ -270,7 +238,12 @@ type ReportVersion struct {
 	PublishedBy     uint            `json:"published_by" gorm:"not null"` // User ID who published
 	PublishedAt     time.Time       `json:"published_at" gorm:"not null"`
 	Sections        ReportSections  `json:"sections" gorm:"type:jsonb;not null"`
-	Metadata        ReportMetadata  `json:"metadata" gorm:"type:jsonb"`
+
+	// SEO Metadata (versioned)
+	MetaTitle       string          `json:"meta_title,omitempty" gorm:"type:varchar(255)"`
+	MetaDescription string          `json:"meta_description,omitempty" gorm:"type:varchar(500)"`
+	MetaKeywords    string          `json:"meta_keywords,omitempty" gorm:"type:varchar(500)"`
+
 	CreatedAt       time.Time       `json:"created_at"`
 	Report          *Report         `json:"report,omitempty" gorm:"foreignKey:ReportID"`
 }

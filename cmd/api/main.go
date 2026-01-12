@@ -69,6 +69,9 @@ import (
 
 // @tag.name Roles
 // @tag.description Role and permission information
+
+// @tag.name Forms
+// @tag.description Form submission management (contact forms, sample requests)
 func main() {
 	// Load .env file
 	if err := godotenv.Load(); err != nil {
@@ -107,6 +110,7 @@ func main() {
 	reportRepo := repository.NewReportRepository(db.DB)
 	authorRepo := repository.NewAuthorRepository(db.DB)
 	auditRepo := repository.NewAuditRepository(db.DB)
+	formRepo := repository.NewFormRepository(db.DB)
 
 	// Initialize services
 	userService := service.NewUserService(userRepo)
@@ -115,6 +119,7 @@ func main() {
 	reportService := service.NewReportService(reportRepo)
 	authorService := service.NewAuthorService(authorRepo)
 	auditService := service.NewAuditService(auditRepo)
+	formService := service.NewFormService(formRepo)
 
 	// Initialize handlers
 	healthHandler := handler.NewHealthHandler()
@@ -125,6 +130,7 @@ func main() {
 	authorHandler := handler.NewAuthorHandler(authorService)
 	auditHandler := handler.NewAuditHandler(auditService)
 	roleHandler := handler.NewRoleHandler()
+	formHandler := handler.NewFormHandler(formService)
 
 	// Initialize Fiber app
 	app := fiber.New(fiber.Config{
@@ -142,7 +148,7 @@ func main() {
 	app.Use(middleware.Logger())
 	app.Use(cors.New(cors.Config{
 		AllowOrigins: "*",
-		AllowMethods: "GET,POST,PUT,DELETE,OPTIONS",
+		AllowMethods: "GET,POST,PUT,PATCH,DELETE,OPTIONS",
 		AllowHeaders: "Origin, Content-Type, Accept, Authorization, X-Request-ID",
 	}))
 	app.Use(compress.New(compress.Config{
@@ -203,6 +209,23 @@ func main() {
 	roles := v1.Group("/roles", middleware.RequireAuth(authService))
 	roles.Get("/", roleHandler.GetAll)
 	roles.Get("/:name", roleHandler.GetByName)
+
+	// Form submission routes (public for create, protected for management)
+	forms := v1.Group("/forms")
+
+	// Public endpoint - anyone can submit forms
+	forms.Post("/submissions", formHandler.Create)
+
+	// Public read endpoints - no authentication required
+	forms.Get("/submissions", formHandler.GetAll)
+	forms.Get("/submissions/:id", formHandler.GetByID)
+	forms.Get("/submissions/category/:category", formHandler.GetByCategory)
+	forms.Get("/stats", formHandler.GetStats)
+
+	// Protected endpoints - require authentication
+	forms.Delete("/submissions/:id", middleware.RequireAuth(authService), middleware.RequireRole("admin"), formHandler.Delete)
+	forms.Delete("/submissions", middleware.RequireAuth(authService), middleware.RequireRole("admin"), formHandler.BulkDelete)
+	forms.Patch("/submissions/:id/status", middleware.RequireAuth(authService), middleware.RequireRole("admin", "editor"), formHandler.UpdateStatus)
 
 	// Graceful shutdown
 	c := make(chan os.Signal, 1)

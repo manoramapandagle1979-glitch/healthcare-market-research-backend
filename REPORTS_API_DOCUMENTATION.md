@@ -90,6 +90,7 @@ GET /api/v1/reports?page=1&limit=10&status=published&category=Pharmaceuticals
       "summary": "Comprehensive analysis of the global healthcare market...",
       "description": "Detailed market research report...",
       "category_id": 5,
+      "category_name": "Pharmaceuticals",
       "geography": ["Global", "North America", "Europe"],
       "publish_date": "2024-01-15",
       "price": 3490,
@@ -128,19 +129,9 @@ GET /api/v1/reports?page=1&limit=10&status=published&category=Pharmaceuticals
           "answer": "The market size is estimated at $87.4 billion..."
         }
       ],
-      "metadata": {
-        "metaTitle": "Global Healthcare Market Report 2024",
-        "metaDescription": "Comprehensive market analysis...",
-        "keywords": ["healthcare", "market research", "pharmaceuticals"],
-        "canonicalUrl": "https://example.com/reports/global-healthcare-2024",
-        "ogTitle": "Global Healthcare Market Report",
-        "ogDescription": "Get insights into the healthcare market",
-        "ogImage": "https://example.com/images/og-report.jpg",
-        "ogType": "article",
-        "twitterCard": "summary_large_image",
-        "schemaJson": "{\"@type\":\"Article\"}",
-        "robotsDirective": "index, follow"
-      },
+      "meta_title": "Global Healthcare Market Report 2024",
+      "meta_description": "Comprehensive market analysis...",
+      "meta_keywords": "healthcare,market research,pharmaceuticals",
       "thumbnail_url": "https://example.com/thumbnails/report-1.jpg",
       "is_featured": true,
       "view_count": 1523,
@@ -236,7 +227,9 @@ GET /api/v1/reports/global-healthcare-market-analysis-2024
         "published_at": "2024-01-15T00:00:00Z",
         "published_by": 1,
         "sections": { /* snapshot of sections */ },
-        "metadata": { /* snapshot of metadata */ },
+        "meta_title": "Global Healthcare Market Report 2024",
+        "meta_description": "Comprehensive market analysis...",
+        "meta_keywords": "healthcare,market research,pharmaceuticals",
         "created_at": "2024-01-15T10:30:00Z"
       }
     ]
@@ -311,19 +304,9 @@ Content-Type: application/json
       "answer": "This report covers global market trends..."
     }
   ],
-  "metadata": {
-    "metaTitle": "New Market Research Report",
-    "metaDescription": "Comprehensive market analysis",
-    "keywords": ["market", "research", "analysis"],
-    "canonicalUrl": "https://example.com/reports/new-report",
-    "ogTitle": "New Market Report",
-    "ogDescription": "Latest market insights",
-    "ogImage": "https://example.com/images/new-report.jpg",
-    "ogType": "article",
-    "twitterCard": "summary_large_image",
-    "schemaJson": "{\"@type\":\"Article\"}",
-    "robotsDirective": "index, follow"
-  }
+  "meta_title": "New Market Research Report",
+  "meta_description": "Comprehensive market analysis",
+  "meta_keywords": "market,research,analysis"
 }
 ```
 
@@ -351,7 +334,9 @@ Content-Type: application/json
     "keyFindings": "",
     "tableOfContents": ""
   },
-  "metadata": {}
+  "meta_title": "",
+  "meta_description": "",
+  "meta_keywords": ""
 }
 ```
 
@@ -425,10 +410,9 @@ All fields are optional (partial update supported):
     "executiveSummary": "<p>Updated executive summary...</p>"
     // Other sections unchanged
   },
-  "metadata"?: {
-    "metaTitle": "Updated Meta Title"
-    // Other metadata unchanged
-  }
+  "meta_title"?: "Updated Meta Title",
+  "meta_description"?: "Updated meta description",
+  "meta_keywords"?: "keyword1,keyword2,keyword3"
   // ... any other fields to update
 }
 ```
@@ -598,19 +582,11 @@ All fields optional:
 - `question` - String (required, min 5 chars)
 - `answer` - String (required, min 10 chars)
 
-### Metadata (SEO)
+### SEO Metadata
 All fields optional:
-- `metaTitle` - String
-- `metaDescription` - String
-- `keywords` - Array of strings
-- `canonicalUrl` - URL string
-- `ogTitle` - String (Open Graph)
-- `ogDescription` - String
-- `ogImage` - URL string
-- `ogType` - String (default: "article")
-- `twitterCard` - String (default: "summary_large_image")
-- `schemaJson` - JSON string (Schema.org markup)
-- `robotsDirective` - String (default: "index, follow")
+- `meta_title` - String (max 255 chars)
+- `meta_description` - String (max 500 chars)
+- `meta_keywords` - String (comma-separated keywords, max 500 chars)
 
 ---
 
@@ -716,7 +692,7 @@ console.log(response.data.message); // "Report deleted successfully"
 
 4. **Version History**:
    - Automatically created on publish
-   - Snapshots sections and metadata
+   - Snapshots sections and SEO metadata fields
    - Cannot be modified after creation
 
 5. **Draft Validation**:

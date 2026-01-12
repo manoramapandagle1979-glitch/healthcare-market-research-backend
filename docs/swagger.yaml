@@ -72,6 +72,132 @@ definitions:
       updated_at:
         type: string
     type: object
+  form.BulkDeleteRequest:
+    properties:
+      ids:
+        items:
+          type: string
+        type: array
+    type: object
+  form.CreateSubmissionRequest:
+    properties:
+      category:
+        $ref: '#/definitions/form.FormCategory'
+      data:
+        $ref: '#/definitions/form.FormData'
+      metadata:
+        $ref: '#/definitions/form.SubmissionMetadata'
+    type: object
+  form.DeleteResponse:
+    properties:
+      deletedCount:
+        type: integer
+      deletedId:
+        type: string
+      deletedIds:
+        items:
+          type: string
+        type: array
+      message:
+        type: string
+      success:
+        type: boolean
+    type: object
+  form.FormCategory:
+    enum:
+    - contact
+    - request-sample
+    type: string
+    x-enum-varnames:
+    - CategoryContact
+    - CategoryRequestSample
+  form.FormData:
+    additionalProperties: true
+    type: object
+  form.FormStatus:
+    enum:
+    - pending
+    - processed
+    - archived
+    type: string
+    x-enum-varnames:
+    - StatusPending
+    - StatusProcessed
+    - StatusArchived
+  form.FormSubmission:
+    properties:
+      category:
+        $ref: '#/definitions/form.FormCategory'
+      createdAt:
+        description: Timestamps
+        type: string
+      data:
+        allOf:
+        - $ref: '#/definitions/form.FormData'
+        description: Form-specific data stored as JSONB
+      id:
+        type: string
+      metadata:
+        allOf:
+        - $ref: '#/definitions/form.SubmissionMetadata'
+        description: Metadata about the submission
+      notes:
+        type: string
+      processedAt:
+        description: Processing tracking
+        type: string
+      processedBy:
+        description: Admin user ID
+        type: integer
+      status:
+        $ref: '#/definitions/form.FormStatus'
+      updatedAt:
+        type: string
+    type: object
+  form.SubmissionMetadata:
+    properties:
+      ipAddress:
+        type: string
+      referrer:
+        type: string
+      submittedAt:
+        type: string
+      userAgent:
+        type: string
+    type: object
+  form.SubmissionResponse:
+    properties:
+      category:
+        $ref: '#/definitions/form.FormCategory'
+      createdAt:
+        type: string
+      message:
+        type: string
+      submissionId:
+        type: string
+      success:
+        type: boolean
+    type: object
+  form.SubmissionStats:
+    properties:
+      byCategory:
+        additionalProperties:
+          format: int64
+          type: integer
+        type: object
+      byStatus:
+        additionalProperties:
+          format: int64
+          type: integer
+        type: object
+      recent:
+        additionalProperties:
+          format: int64
+          type: integer
+        type: object
+      total:
+        type: integer
+    type: object
   report.ChartMetadata:
     properties:
       chart_type:
@@ -188,12 +314,8 @@ definitions:
       meta_keywords:
         type: string
       meta_title:
-        description: Legacy fields (kept for backward compatibility)
-        type: string
-      metadata:
-        allOf:
-        - $ref: '#/definitions/report.ReportMetadata'
         description: SEO Metadata
+        type: string
       page_count:
         description: Report details
         type: integer
@@ -226,33 +348,6 @@ definitions:
         description: Statistics
         type: integer
     type: object
-  report.ReportMetadata:
-    properties:
-      canonicalUrl:
-        type: string
-      keywords:
-        items:
-          type: string
-        type: array
-      metaDescription:
-        type: string
-      metaTitle:
-        type: string
-      ogDescription:
-        type: string
-      ogImage:
-        type: string
-      ogTitle:
-        type: string
-      ogType:
-        type: string
-      robotsDirective:
-        type: string
-      schemaJson:
-        type: string
-      twitterCard:
-        type: string
-    type: object
   report.ReportSections:
     properties:
       competitive:
@@ -284,8 +379,13 @@ definitions:
         type: string
       id:
         type: integer
-      metadata:
-        $ref: '#/definitions/report.ReportMetadata'
+      meta_description:
+        type: string
+      meta_keywords:
+        type: string
+      meta_title:
+        description: SEO Metadata (versioned)
+        type: string
       published_at:
         type: string
       published_by:
@@ -363,12 +463,8 @@ definitions:
       meta_keywords:
         type: string
       meta_title:
-        description: Legacy fields (kept for backward compatibility)
-        type: string
-      metadata:
-        allOf:
-        - $ref: '#/definitions/report.ReportMetadata'
         description: SEO Metadata
+        type: string
       page_count:
         description: Report details
         type: integer
@@ -1308,6 +1404,396 @@ paths:
       summary: Get reports by category slug
       tags:
       - Reports
+  /api/v1/forms/stats:
+    get:
+      consumes:
+      - application/json
+      description: Get statistics about form submissions (totals by category, status,
+        recent counts)
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Submission statistics
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/form.SubmissionStats'
+              type: object
+        "500":
+          description: Internal server error
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                error:
+                  type: string
+              type: object
+      summary: Get submission statistics
+      tags:
+      - Forms
+  /api/v1/forms/submissions:
+    delete:
+      consumes:
+      - application/json
+      description: Delete multiple form submissions by IDs
+      parameters:
+      - description: Array of submission IDs to delete
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/form.BulkDeleteRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Submissions deleted successfully
+          schema:
+            $ref: '#/definitions/form.DeleteResponse'
+        "400":
+          description: Bad request - invalid input
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "500":
+          description: Internal server error
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                error:
+                  type: string
+              type: object
+      summary: Bulk delete submissions
+      tags:
+      - Forms
+    get:
+      consumes:
+      - application/json
+      description: Get a paginated list of form submissions with optional filtering
+      parameters:
+      - description: 'Filter by category: contact, request-sample'
+        in: query
+        name: category
+        type: string
+      - description: 'Filter by status: pending, processed, archived'
+        in: query
+        name: status
+        type: string
+      - description: Start date (ISO 8601 format)
+        in: query
+        name: dateFrom
+        type: string
+      - description: End date (ISO 8601 format)
+        in: query
+        name: dateTo
+        type: string
+      - description: Search in name, email, company
+        in: query
+        name: search
+        type: string
+      - description: 'Page number (default: 1, min: 1)'
+        in: query
+        name: page
+        type: integer
+      - description: 'Items per page (default: 20, max: 100)'
+        in: query
+        name: limit
+        type: integer
+      - description: 'Sort field: createdAt, company, name (default: createdAt)'
+        in: query
+        name: sortBy
+        type: string
+      - description: 'Sort order: asc, desc (default: desc)'
+        in: query
+        name: sortOrder
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of submissions with pagination
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/form.FormSubmission'
+                  type: array
+                meta:
+                  $ref: '#/definitions/response.Meta'
+              type: object
+        "500":
+          description: Internal server error
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                error:
+                  type: string
+              type: object
+      summary: Get all form submissions
+      tags:
+      - Forms
+    post:
+      consumes:
+      - application/json
+      description: Submit a new form (contact or request-sample)
+      parameters:
+      - description: Form submission data
+        in: body
+        name: submission
+        required: true
+        schema:
+          $ref: '#/definitions/form.CreateSubmissionRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Submission created successfully
+          schema:
+            $ref: '#/definitions/form.SubmissionResponse'
+        "400":
+          description: Bad request - invalid input or validation error
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "500":
+          description: Internal server error
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                error:
+                  type: string
+              type: object
+      summary: Create form submission
+      tags:
+      - Forms
+  /api/v1/forms/submissions/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Delete a form submission by ID
+      parameters:
+      - description: Submission ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Submission deleted successfully
+          schema:
+            $ref: '#/definitions/form.DeleteResponse'
+        "404":
+          description: Submission not found
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "500":
+          description: Internal server error
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                error:
+                  type: string
+              type: object
+      summary: Delete submission
+      tags:
+      - Forms
+    get:
+      consumes:
+      - application/json
+      description: Get a single form submission by ID
+      parameters:
+      - description: Submission ID
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Submission details
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/form.FormSubmission'
+              type: object
+        "404":
+          description: Submission not found
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "500":
+          description: Internal server error
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                error:
+                  type: string
+              type: object
+      summary: Get single submission
+      tags:
+      - Forms
+  /api/v1/forms/submissions/{id}/status:
+    patch:
+      consumes:
+      - application/json
+      description: Update the processing status of a form submission
+      parameters:
+      - description: Submission ID
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: 'Status update (status: pending/processed/archived)'
+        in: body
+        name: request
+        required: true
+        schema:
+          additionalProperties:
+            type: string
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Status updated successfully
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  additionalProperties:
+                    type: string
+                  type: object
+              type: object
+        "400":
+          description: Bad request - invalid input
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "401":
+          description: Unauthorized - authentication required
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "404":
+          description: Submission not found
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "500":
+          description: Internal server error
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                error:
+                  type: string
+              type: object
+      security:
+      - BearerAuth: []
+      summary: Update submission status
+      tags:
+      - Forms
+  /api/v1/forms/submissions/category/{category}:
+    get:
+      consumes:
+      - application/json
+      description: Get form submissions filtered by category (contact or request-sample)
+      parameters:
+      - description: 'Category: contact or request-sample'
+        in: path
+        name: category
+        required: true
+        type: string
+      - description: 'Page number (default: 1)'
+        in: query
+        name: page
+        type: integer
+      - description: 'Items per page (default: 20, max: 100)'
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: List of submissions
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/form.FormSubmission'
+                  type: array
+                meta:
+                  $ref: '#/definitions/response.Meta'
+              type: object
+        "400":
+          description: Bad request - invalid category
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "500":
+          description: Internal server error
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                error:
+                  type: string
+              type: object
+      summary: Get submissions by category
+      tags:
+      - Forms
   /api/v1/reports:
     get:
       consumes:
@@ -2239,3 +2725,5 @@ tags:
   name: Audit
 - description: Role and permission information
   name: Roles
+- description: Form submission management (contact forms, sample requests)
+  name: Forms

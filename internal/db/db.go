@@ -9,6 +9,7 @@ import (
 	"github.com/healthcare-market-research/backend/internal/domain/audit"
 	"github.com/healthcare-market-research/backend/internal/domain/author"
 	"github.com/healthcare-market-research/backend/internal/domain/category"
+	"github.com/healthcare-market-research/backend/internal/domain/form"
 	"github.com/healthcare-market-research/backend/internal/domain/report"
 	"github.com/healthcare-market-research/backend/internal/domain/user"
 	"gorm.io/driver/postgres"
@@ -86,6 +87,7 @@ func Migrate() error {
 		&report.ChartMetadata{},
 		&report.ReportVersion{},
 		&audit.AuditLog{},
+		&form.FormSubmission{},
 	)
 
 	if err != nil {

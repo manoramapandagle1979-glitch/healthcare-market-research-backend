@@ -70,9 +70,10 @@ func (r *reportRepository) GetAll(page, limit int) ([]report.Report, int64, erro
 	}
 
 	querySQL := `
-		SELECT *
-		FROM reports
-		ORDER BY COALESCE(publish_date, updated_at) DESC
+		SELECT r.*, c.name as category_name
+		FROM reports r
+		LEFT JOIN categories c ON r.category_id = c.id
+		ORDER BY COALESCE(r.publish_date, r.updated_at) DESC
 		LIMIT ? OFFSET ?
 	`
 
@@ -188,7 +189,7 @@ func (r *reportRepository) GetAllWithFilters(filters ReportFilters) ([]report.Re
 
 	// Fetch query
 	querySQL := fmt.Sprintf(`
-		SELECT r.*
+		SELECT r.*, c.name as category_name
 		FROM reports r
 		LEFT JOIN categories c ON r.category_id = c.id
 		WHERE %s
@@ -246,7 +247,7 @@ func (r *reportRepository) GetByCategorySlug(categorySlug string, page, limit in
 	}
 
 	querySQL := `
-		SELECT r.*
+		SELECT r.*, c.name as category_name
 		FROM reports r
 		INNER JOIN categories c ON r.category_id = c.id
 		WHERE c.slug = ? AND c.is_active = true
@@ -268,18 +269,20 @@ func (r *reportRepository) Search(query string, page, limit int) ([]report.Repor
 
 	countSQL := `
 		SELECT COUNT(*)
-		FROM reports
-		WHERE (title ILIKE ? OR description ILIKE ? OR summary ILIKE ?)
+		FROM reports r
+		LEFT JOIN categories c ON r.category_id = c.id
+		WHERE (r.title ILIKE ? OR r.description ILIKE ? OR r.summary ILIKE ?)
 	`
 	if err := r.db.Raw(countSQL, searchPattern, searchPattern, searchPattern).Scan(&total).Error; err != nil {
 		return nil, 0, err
 	}
 
 	querySQL := `
-		SELECT *
-		FROM reports
-		WHERE (title ILIKE ? OR description ILIKE ? OR summary ILIKE ?)
-		ORDER BY COALESCE(publish_date, updated_at) DESC
+		SELECT r.*, c.name as category_name
+		FROM reports r
+		LEFT JOIN categories c ON r.category_id = c.id
+		WHERE (r.title ILIKE ? OR r.description ILIKE ? OR r.summary ILIKE ?)
+		ORDER BY COALESCE(r.publish_date, r.updated_at) DESC
 		LIMIT ? OFFSET ?
 	`
 
