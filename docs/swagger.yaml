@@ -2141,6 +2141,54 @@ paths:
       summary: Unpublish blog
       tags:
       - Blogs
+  /api/v1/blogs/slug/{slug}:
+    get:
+      consumes:
+      - application/json
+      description: Get a single blog post by slug
+      parameters:
+      - description: Blog slug
+        in: path
+        name: slug
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Blog details
+          schema:
+            $ref: '#/definitions/blog.BlogResponse'
+        "400":
+          description: Bad request - invalid slug
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "404":
+          description: Blog not found
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "500":
+          description: Internal server error
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                error:
+                  type: string
+              type: object
+      summary: Get blog by slug
+      tags:
+      - Blogs
   /api/v1/categories:
     get:
       consumes:
@@ -3075,6 +3123,54 @@ paths:
                   type: string
               type: object
       summary: Unpublish press release
+      tags:
+      - PressReleases
+  /api/v1/press-releases/slug/{slug}:
+    get:
+      consumes:
+      - application/json
+      description: Get a single press release by slug
+      parameters:
+      - description: Press release slug
+        in: path
+        name: slug
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Press release details
+          schema:
+            $ref: '#/definitions/press_release.PressReleaseResponse'
+        "400":
+          description: Bad request - invalid slug
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "404":
+          description: Press release not found
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                error:
+                  type: string
+              type: object
+        "500":
+          description: Internal server error
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.Response'
+            - properties:
+                error:
+                  type: string
+              type: object
+      summary: Get press release by slug
       tags:
       - PressReleases
   /api/v1/reports:

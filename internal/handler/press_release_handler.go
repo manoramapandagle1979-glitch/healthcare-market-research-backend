@@ -129,6 +129,32 @@ func (h *PressReleaseHandler) GetByID(c *fiber.Ctx) error {
 	return c.JSON(press_release.PressReleaseResponse{PressRelease: *pr})
 }
 
+// GetBySlug godoc
+// @Summary Get press release by slug
+// @Description Get a single press release by slug
+// @Tags PressReleases
+// @Accept json
+// @Produce json
+// @Param slug path string true "Press release slug"
+// @Success 200 {object} press_release.PressReleaseResponse "Press release details"
+// @Failure 400 {object} response.Response{error=string} "Bad request - invalid slug"
+// @Failure 404 {object} response.Response{error=string} "Press release not found"
+// @Failure 500 {object} response.Response{error=string} "Internal server error"
+// @Router /api/v1/press-releases/slug/{slug} [get]
+func (h *PressReleaseHandler) GetBySlug(c *fiber.Ctx) error {
+	slug := c.Params("slug")
+	if slug == "" {
+		return response.BadRequest(c, "Press release slug is required")
+	}
+
+	pr, err := h.service.GetBySlug(slug)
+	if err != nil {
+		return response.NotFound(c, "Press release not found")
+	}
+
+	return c.JSON(press_release.PressReleaseResponse{PressRelease: *pr})
+}
+
 // Update godoc
 // @Summary Update press release
 // @Description Update an existing press release

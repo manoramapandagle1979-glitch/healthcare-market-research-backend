@@ -257,6 +257,7 @@ func main() {
 
 	// Blog routes
 	v1.Get("/blogs", blogHandler.GetAll)
+	v1.Get("/blogs/slug/:slug", blogHandler.GetBySlug)
 	v1.Get("/blogs/:id", blogHandler.GetByID)
 	v1.Post("/blogs", middleware.RequireAuth(authService), middleware.RequireRole("admin", "editor"), blogHandler.Create)
 	v1.Put("/blogs/:id", middleware.RequireAuth(authService), middleware.RequireRole("admin", "editor"), blogHandler.Update)
@@ -267,6 +268,7 @@ func main() {
 
 	// Press Release routes
 	v1.Get("/press-releases", pressReleaseHandler.GetAll)
+	v1.Get("/press-releases/slug/:slug", pressReleaseHandler.GetBySlug)
 	v1.Get("/press-releases/:id", pressReleaseHandler.GetByID)
 	v1.Post("/press-releases", middleware.RequireAuth(authService), middleware.RequireRole("admin", "editor"), pressReleaseHandler.Create)
 	v1.Put("/press-releases/:id", middleware.RequireAuth(authService), middleware.RequireRole("admin", "editor"), pressReleaseHandler.Update)

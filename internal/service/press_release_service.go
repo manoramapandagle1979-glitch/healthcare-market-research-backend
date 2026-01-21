@@ -14,6 +14,7 @@ type PressReleaseService interface {
 	Create(req *press_release.CreatePressReleaseRequest) (*press_release.PressRelease, error)
 	GetAll(query press_release.GetPressReleasesQuery) ([]press_release.PressRelease, int64, error)
 	GetByID(id uint) (*press_release.PressRelease, error)
+	GetBySlug(slug string) (*press_release.PressRelease, error)
 	Update(id uint, req *press_release.UpdatePressReleaseRequest) (*press_release.PressRelease, error)
 	Delete(id uint) error
 	SubmitForReview(id uint) (*press_release.PressRelease, error)
@@ -114,6 +115,22 @@ func (s *pressReleaseService) GetByID(id uint) (*press_release.PressRelease, err
 
 	err := cache.GetOrSet(cacheKey, &pr, 10*time.Minute, func() (interface{}, error) {
 		return s.repo.GetByID(id)
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &pr, nil
+}
+
+func (s *pressReleaseService) GetBySlug(slug string) (*press_release.PressRelease, error) {
+	cacheKey := fmt.Sprintf("press_release:slug:%s", slug)
+
+	var pr press_release.PressRelease
+
+	err := cache.GetOrSet(cacheKey, &pr, 10*time.Minute, func() (interface{}, error) {
+		return s.repo.GetBySlug(slug)
 	})
 
 	if err != nil {

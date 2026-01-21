@@ -11,6 +11,7 @@ type BlogRepository interface {
 	Create(b *blog.Blog) error
 	GetAll(query blog.GetBlogsQuery) ([]blog.Blog, int64, error)
 	GetByID(id uint) (*blog.Blog, error)
+	GetBySlug(slug string) (*blog.Blog, error)
 	Update(id uint, updates map[string]interface{}) error
 	Delete(id uint) error
 	SubmitForReview(id uint) error
@@ -97,6 +98,14 @@ func (r *blogRepository) GetAll(query blog.GetBlogsQuery) ([]blog.Blog, int64, e
 func (r *blogRepository) GetByID(id uint) (*blog.Blog, error) {
 	var b blog.Blog
 	if err := r.db.First(&b, id).Error; err != nil {
+		return nil, err
+	}
+	return &b, nil
+}
+
+func (r *blogRepository) GetBySlug(slug string) (*blog.Blog, error) {
+	var b blog.Blog
+	if err := r.db.Where("slug = ?", slug).First(&b).Error; err != nil {
 		return nil, err
 	}
 	return &b, nil

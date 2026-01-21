@@ -11,6 +11,7 @@ type PressReleaseRepository interface {
 	Create(pr *press_release.PressRelease) error
 	GetAll(query press_release.GetPressReleasesQuery) ([]press_release.PressRelease, int64, error)
 	GetByID(id uint) (*press_release.PressRelease, error)
+	GetBySlug(slug string) (*press_release.PressRelease, error)
 	Update(id uint, updates map[string]interface{}) error
 	Delete(id uint) error
 	SubmitForReview(id uint) error
@@ -97,6 +98,14 @@ func (r *pressReleaseRepository) GetAll(query press_release.GetPressReleasesQuer
 func (r *pressReleaseRepository) GetByID(id uint) (*press_release.PressRelease, error) {
 	var pr press_release.PressRelease
 	if err := r.db.First(&pr, id).Error; err != nil {
+		return nil, err
+	}
+	return &pr, nil
+}
+
+func (r *pressReleaseRepository) GetBySlug(slug string) (*press_release.PressRelease, error) {
+	var pr press_release.PressRelease
+	if err := r.db.Where("slug = ?", slug).First(&pr).Error; err != nil {
 		return nil, err
 	}
 	return &pr, nil

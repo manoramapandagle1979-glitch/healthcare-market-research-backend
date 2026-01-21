@@ -14,6 +14,7 @@ type BlogService interface {
 	Create(req *blog.CreateBlogRequest) (*blog.Blog, error)
 	GetAll(query blog.GetBlogsQuery) ([]blog.Blog, int64, error)
 	GetByID(id uint) (*blog.Blog, error)
+	GetBySlug(slug string) (*blog.Blog, error)
 	Update(id uint, req *blog.UpdateBlogRequest) (*blog.Blog, error)
 	Delete(id uint) error
 	SubmitForReview(id uint) (*blog.Blog, error)
@@ -114,6 +115,22 @@ func (s *blogService) GetByID(id uint) (*blog.Blog, error) {
 
 	err := cache.GetOrSet(cacheKey, &b, 10*time.Minute, func() (interface{}, error) {
 		return s.repo.GetByID(id)
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &b, nil
+}
+
+func (s *blogService) GetBySlug(slug string) (*blog.Blog, error) {
+	cacheKey := fmt.Sprintf("blog:slug:%s", slug)
+
+	var b blog.Blog
+
+	err := cache.GetOrSet(cacheKey, &b, 10*time.Minute, func() (interface{}, error) {
+		return s.repo.GetBySlug(slug)
 	})
 
 	if err != nil {

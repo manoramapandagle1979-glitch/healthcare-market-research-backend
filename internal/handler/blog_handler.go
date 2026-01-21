@@ -129,6 +129,32 @@ func (h *BlogHandler) GetByID(c *fiber.Ctx) error {
 	return c.JSON(blog.BlogResponse{Blog: *b})
 }
 
+// GetBySlug godoc
+// @Summary Get blog by slug
+// @Description Get a single blog post by slug
+// @Tags Blogs
+// @Accept json
+// @Produce json
+// @Param slug path string true "Blog slug"
+// @Success 200 {object} blog.BlogResponse "Blog details"
+// @Failure 400 {object} response.Response{error=string} "Bad request - invalid slug"
+// @Failure 404 {object} response.Response{error=string} "Blog not found"
+// @Failure 500 {object} response.Response{error=string} "Internal server error"
+// @Router /api/v1/blogs/slug/{slug} [get]
+func (h *BlogHandler) GetBySlug(c *fiber.Ctx) error {
+	slug := c.Params("slug")
+	if slug == "" {
+		return response.BadRequest(c, "Blog slug is required")
+	}
+
+	b, err := h.service.GetBySlug(slug)
+	if err != nil {
+		return response.NotFound(c, "Blog not found")
+	}
+
+	return c.JSON(blog.BlogResponse{Blog: *b})
+}
+
 // Update godoc
 // @Summary Update blog
 // @Description Update an existing blog post
