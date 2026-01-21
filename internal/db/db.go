@@ -8,8 +8,10 @@ import (
 	"github.com/healthcare-market-research/backend/internal/config"
 	"github.com/healthcare-market-research/backend/internal/domain/audit"
 	"github.com/healthcare-market-research/backend/internal/domain/author"
+	"github.com/healthcare-market-research/backend/internal/domain/blog"
 	"github.com/healthcare-market-research/backend/internal/domain/category"
 	"github.com/healthcare-market-research/backend/internal/domain/form"
+	"github.com/healthcare-market-research/backend/internal/domain/press_release"
 	"github.com/healthcare-market-research/backend/internal/domain/report"
 	"github.com/healthcare-market-research/backend/internal/domain/user"
 	"gorm.io/driver/postgres"
@@ -86,8 +88,11 @@ func Migrate() error {
 		&report.Report{},
 		&report.ChartMetadata{},
 		&report.ReportVersion{},
+		&report.ReportImage{},
 		&audit.AuditLog{},
 		&form.FormSubmission{},
+		&blog.Blog{},
+		&press_release.PressRelease{},
 	)
 
 	if err != nil {
@@ -97,6 +102,28 @@ func Migrate() error {
 	// Clean up old columns if they exist (after tables are created)
 	DB.Exec("ALTER TABLE IF EXISTS reports DROP COLUMN IF EXISTS sub_category_id")
 	DB.Exec("ALTER TABLE IF EXISTS reports DROP COLUMN IF EXISTS market_segment_id")
+
+	// Add foreign key constraint for report_images.uploaded_by (GORM doesn't auto-create this)
+	// Check if constraint already exists before adding
+	var constraintExists bool
+	DB.Raw(`
+		SELECT EXISTS (
+			SELECT 1 FROM information_schema.table_constraints
+			WHERE constraint_name = 'fk_report_images_user'
+			AND table_name = 'report_images'
+			AND table_schema = CURRENT_SCHEMA()
+		)
+	`).Scan(&constraintExists)
+
+	if !constraintExists {
+		DB.Exec(`
+			ALTER TABLE report_images
+			ADD CONSTRAINT fk_report_images_user
+			FOREIGN KEY (uploaded_by)
+			REFERENCES users(id)
+			ON DELETE SET NULL
+		`)
+	}
 
 	log.Println("Database migrations completed successfully")
 	return nil

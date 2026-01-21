@@ -14,6 +14,7 @@ type Config struct {
 	Redis       RedisConfig
 	Auth        AuthConfig
 	RateLimit   RateLimitConfig
+	Cloudflare  CloudflareConfig
 }
 
 type DatabaseConfig struct {
@@ -43,6 +44,12 @@ type AuthConfig struct {
 type RateLimitConfig struct {
 	LoginMaxAttempts int
 	LoginWindow      time.Duration
+}
+
+type CloudflareConfig struct {
+	AccountID   string
+	APIToken    string
+	DeliveryURL string
 }
 
 func Load() *Config {
@@ -89,6 +96,11 @@ func Load() *Config {
 		RateLimit: RateLimitConfig{
 			LoginMaxAttempts: rateLimitMaxAttempts,
 			LoginWindow:      rateLimitWindow,
+		},
+		Cloudflare: CloudflareConfig{
+			AccountID:   getEnv("CLOUDFLARE_ACCOUNT_ID", ""),
+			APIToken:    getEnv("CLOUDFLARE_IMAGES_API_TOKEN", ""),
+			DeliveryURL: getEnv("CLOUDFLARE_DELIVERY_URL", ""),
 		},
 	}
 }

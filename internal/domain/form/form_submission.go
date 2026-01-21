@@ -92,7 +92,7 @@ func (m *SubmissionMetadata) Scan(value interface{}) error {
 
 // FormSubmission represents a form submission in the database
 type FormSubmission struct {
-	ID       string       `json:"id" gorm:"type:varchar(50);primaryKey"`
+	ID       uint         `json:"id" gorm:"primaryKey"`
 	Category FormCategory `json:"category" gorm:"type:varchar(20);not null;index"`
 	Status   FormStatus   `json:"status" gorm:"type:varchar(20);default:'pending';index"`
 
@@ -127,7 +127,7 @@ type CreateSubmissionRequest struct {
 // SubmissionResponse is the response after creating a submission
 type SubmissionResponse struct {
 	Success      bool         `json:"success"`
-	SubmissionID string       `json:"submissionId"`
+	SubmissionID uint         `json:"submissionId"`
 	Category     FormCategory `json:"category"`
 	Message      string       `json:"message"`
 	CreatedAt    time.Time    `json:"createdAt"`
@@ -156,14 +156,14 @@ type SubmissionStats struct {
 
 // DeleteResponse represents the response after deleting submissions
 type DeleteResponse struct {
-	Success      bool     `json:"success"`
-	Message      string   `json:"message"`
-	DeletedCount int      `json:"deletedCount,omitempty"`
-	DeletedID    string   `json:"deletedId,omitempty"`
-	DeletedIDs   []string `json:"deletedIds,omitempty"`
+	Success      bool   `json:"success"`
+	Message      string `json:"message"`
+	DeletedCount int    `json:"deletedCount,omitempty"`
+	DeletedID    uint   `json:"deletedId,omitempty"`
+	DeletedIDs   []uint `json:"deletedIds,omitempty"`
 }
 
 // BulkDeleteRequest represents the request body for bulk delete
 type BulkDeleteRequest struct {
-	IDs []string `json:"ids"`
+	IDs []uint `json:"ids"`
 }

@@ -119,8 +119,8 @@ GET /api/v1/reports?page=1&limit=10&status=published&category=Pharmaceuticals
         }
       ],
       "sections": {
-        "executiveSummary": "<p>Executive summary HTML content...</p>",
-        "marketOverview": "<p>Market overview HTML content...</p>",
+        "keyPlayers": "<p>Key players HTML content...</p>",
+        "marketDetails": "<p>Market details HTML content...</p>",
         // ... other sections
       },
       "faqs": [
@@ -286,16 +286,8 @@ Content-Type: application/json
     }
   ],
   "sections": {
-    "executiveSummary": "<p>Executive summary content...</p>",
-    "marketOverview": "<p>Market overview content...</p>",
-    "marketSize": "<p>Market size analysis...</p>",
-    "competitive": "<p>Competitive landscape...</p>",
     "keyPlayers": "<p>Key players analysis...</p>",
-    "regional": "<p>Regional analysis...</p>",
-    "trends": "<p>Market trends...</p>",
-    "conclusion": "<p>Conclusion...</p>",
     "marketDetails": "<p>Detailed market info...</p>",
-    "keyFindings": "<p>Key findings...</p>",
     "tableOfContents": "<p>Table of contents...</p>"
   },
   "faqs": [
@@ -322,16 +314,8 @@ Content-Type: application/json
   "access_type": "free",
   "status": "draft",
   "sections": {
-    "executiveSummary": "",
-    "marketOverview": "",
-    "marketSize": "",
-    "competitive": "",
     "keyPlayers": "",
-    "regional": "",
-    "trends": "",
-    "conclusion": "",
     "marketDetails": "",
-    "keyFindings": "",
     "tableOfContents": ""
   },
   "meta_title": "",
@@ -407,7 +391,7 @@ All fields are optional (partial update supported):
   "status"?: "published",  // Change from draft to published
   "price"?: 3990,
   "sections"?: {
-    "executiveSummary": "<p>Updated executive summary...</p>"
+    "marketDetails": "<p>Updated market details...</p>"
     // Other sections unchanged
   },
   "meta_title"?: "Updated Meta Title",
@@ -550,16 +534,8 @@ Same as "Get All Reports" response
 
 ### Report Sections
 All sections support HTML content:
-- `executiveSummary` - Min 100 chars when publishing
-- `marketOverview` - Min 100 chars when publishing
-- `marketSize` - Min 100 chars when publishing
-- `competitive` - Min 100 chars when publishing
 - `keyPlayers` - Optional
-- `regional` - Optional
-- `trends` - Optional
-- `conclusion` - Min 50 chars when publishing
 - `marketDetails` - Min 100 chars when publishing
-- `keyFindings` - Min 100 chars when publishing
 - `tableOfContents` - Min 50 chars when publishing
 
 ### Market Metrics

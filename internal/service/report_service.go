@@ -2,6 +2,7 @@ package service
 
 import (
 	"fmt"
+	"log"
 	"time"
 
 	"github.com/healthcare-market-research/backend/internal/cache"
@@ -22,11 +23,17 @@ type ReportService interface {
 }
 
 type reportService struct {
-	repo repository.ReportRepository
+	repo              repository.ReportRepository
+	reportImageRepo   repository.ReportImageRepository
+	cloudflareService CloudflareImagesService
 }
 
-func NewReportService(repo repository.ReportRepository) ReportService {
-	return &reportService{repo: repo}
+func NewReportService(repo repository.ReportRepository, reportImageRepo repository.ReportImageRepository, cloudflareService CloudflareImagesService) ReportService {
+	return &reportService{
+		repo:              repo,
+		reportImageRepo:   reportImageRepo,
+		cloudflareService: cloudflareService,
+	}
 }
 
 func (s *reportService) GetAll(page, limit int) ([]report.Report, int64, error) {
@@ -236,6 +243,16 @@ func (s *reportService) Delete(id uint) error {
 		return err
 	}
 
+	// Get all images for this report and delete from Cloudflare (best effort)
+	images, _ := s.reportImageRepo.FindByReportID(id)
+	for _, img := range images {
+		if err := s.cloudflareService.Delete(img.ImageURL); err != nil {
+			// Log error but don't fail the deletion
+			log.Printf("Failed to delete image from Cloudflare: %s, error: %v", img.ImageURL, err)
+		}
+	}
+
+	// Delete report (CASCADE will delete DB image records automatically)
 	err = s.repo.Delete(id)
 	if err != nil {
 		return err

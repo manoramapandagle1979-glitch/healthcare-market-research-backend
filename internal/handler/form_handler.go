@@ -118,18 +118,24 @@ func (h *FormHandler) GetAll(c *fiber.Ctx) error {
 // @Tags Forms
 // @Accept json
 // @Produce json
-// @Param id path string true "Submission ID"
+// @Param id path int true "Submission ID"
 // @Success 200 {object} response.Response{data=form.FormSubmission} "Submission details"
+// @Failure 400 {object} response.Response{error=string} "Bad request - invalid ID"
 // @Failure 404 {object} response.Response{error=string} "Submission not found"
 // @Failure 500 {object} response.Response{error=string} "Internal server error"
 // @Router /api/v1/forms/submissions/{id} [get]
 func (h *FormHandler) GetByID(c *fiber.Ctx) error {
-	id := c.Params("id")
-	if id == "" {
+	idStr := c.Params("id")
+	if idStr == "" {
 		return response.BadRequest(c, "Submission ID is required")
 	}
 
-	submission, err := h.service.GetByID(id)
+	id, err := strconv.ParseUint(idStr, 10, 64)
+	if err != nil {
+		return response.BadRequest(c, "Invalid submission ID format")
+	}
+
+	submission, err := h.service.GetByID(uint(id))
 	if err != nil {
 		return response.NotFound(c, "Submission not found")
 	}
@@ -189,18 +195,24 @@ func (h *FormHandler) GetByCategory(c *fiber.Ctx) error {
 // @Tags Forms
 // @Accept json
 // @Produce json
-// @Param id path string true "Submission ID"
+// @Param id path int true "Submission ID"
 // @Success 200 {object} form.DeleteResponse "Submission deleted successfully"
+// @Failure 400 {object} response.Response{error=string} "Bad request - invalid ID"
 // @Failure 404 {object} response.Response{error=string} "Submission not found"
 // @Failure 500 {object} response.Response{error=string} "Internal server error"
 // @Router /api/v1/forms/submissions/{id} [delete]
 func (h *FormHandler) Delete(c *fiber.Ctx) error {
-	id := c.Params("id")
-	if id == "" {
+	idStr := c.Params("id")
+	if idStr == "" {
 		return response.BadRequest(c, "Submission ID is required")
 	}
 
-	if err := h.service.Delete(id); err != nil {
+	id, err := strconv.ParseUint(idStr, 10, 64)
+	if err != nil {
+		return response.BadRequest(c, "Invalid submission ID format")
+	}
+
+	if err := h.service.Delete(uint(id)); err != nil {
 		if err.Error() == "record not found" {
 			return response.NotFound(c, "Submission not found")
 		}
@@ -210,7 +222,7 @@ func (h *FormHandler) Delete(c *fiber.Ctx) error {
 	return response.Success(c, form.DeleteResponse{
 		Success:   true,
 		Message:   "Submission deleted successfully",
-		DeletedID: id,
+		DeletedID: uint(id),
 	})
 }
 
@@ -273,7 +285,7 @@ func (h *FormHandler) GetStats(c *fiber.Ctx) error {
 // @Security BearerAuth
 // @Accept json
 // @Produce json
-// @Param id path string true "Submission ID"
+// @Param id path int true "Submission ID"
 // @Param request body map[string]string true "Status update (status: pending/processed/archived)"
 // @Success 200 {object} response.Response{data=map[string]string} "Status updated successfully"
 // @Failure 400 {object} response.Response{error=string} "Bad request - invalid input"
@@ -282,9 +294,14 @@ func (h *FormHandler) GetStats(c *fiber.Ctx) error {
 // @Failure 500 {object} response.Response{error=string} "Internal server error"
 // @Router /api/v1/forms/submissions/{id}/status [patch]
 func (h *FormHandler) UpdateStatus(c *fiber.Ctx) error {
-	id := c.Params("id")
-	if id == "" {
+	idStr := c.Params("id")
+	if idStr == "" {
 		return response.BadRequest(c, "Submission ID is required")
+	}
+
+	id, err := strconv.ParseUint(idStr, 10, 64)
+	if err != nil {
+		return response.BadRequest(c, "Invalid submission ID format")
 	}
 
 	var req struct {
@@ -303,7 +320,7 @@ func (h *FormHandler) UpdateStatus(c *fiber.Ctx) error {
 		}
 	}
 
-	if err := h.service.UpdateStatus(id, form.FormStatus(req.Status), processedBy); err != nil {
+	if err := h.service.UpdateStatus(uint(id), form.FormStatus(req.Status), processedBy); err != nil {
 		if err.Error() == "record not found" {
 			return response.NotFound(c, "Submission not found")
 		}

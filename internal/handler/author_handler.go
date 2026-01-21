@@ -8,6 +8,7 @@ import (
 	"github.com/healthcare-market-research/backend/internal/domain/author"
 	"github.com/healthcare-market-research/backend/internal/service"
 	"github.com/healthcare-market-research/backend/pkg/response"
+	"github.com/healthcare-market-research/backend/pkg/validation"
 )
 
 type AuthorHandler struct {
@@ -20,7 +21,7 @@ func NewAuthorHandler(service service.AuthorService) *AuthorHandler {
 
 // GetAll godoc
 // @Summary Get all authors
-// @Description Get a paginated list of authors with optional search
+// @Description Get a paginated list of authors with optional search. Response includes linkedinUrl for each author if set.
 // @Tags Authors
 // @Accept json
 // @Produce json
@@ -61,7 +62,7 @@ func (h *AuthorHandler) GetAll(c *fiber.Ctx) error {
 
 // GetByID godoc
 // @Summary Get single author
-// @Description Get a single author by ID
+// @Description Get a single author by ID. Response includes linkedinUrl if set.
 // @Tags Authors
 // @Accept json
 // @Produce json
@@ -91,7 +92,7 @@ func (h *AuthorHandler) GetByID(c *fiber.Ctx) error {
 // @Security BearerAuth
 // @Accept json
 // @Produce json
-// @Param author body author.Author true "Author data (name is required with min 2 chars, role and bio are optional)"
+// @Param author body author.Author true "Author data (name is required with min 2 chars, role, bio, and linkedinUrl are optional. linkedinUrl must be a valid HTTPS URL)"
 // @Success 201 {object} response.Response{data=author.Author} "Created author"
 // @Failure 400 {object} response.Response{error=string} "Bad request - invalid input or validation error"
 // @Failure 401 {object} response.Response{error=string} "Unauthorized - authentication required"
@@ -117,6 +118,13 @@ func (h *AuthorHandler) Create(c *fiber.Ctx) error {
 		return response.BadRequest(c, "Bio must not exceed 1000 characters")
 	}
 
+	// Validate LinkedIn URL if provided
+	if req.LinkedinURL != "" {
+		if err := validation.ValidateURL(req.LinkedinURL); err != nil {
+			return response.BadRequest(c, "Invalid LinkedIn URL: "+err.Error())
+		}
+	}
+
 	if err := h.service.Create(&req); err != nil {
 		return response.InternalError(c, "Failed to create author")
 	}
@@ -135,7 +143,7 @@ func (h *AuthorHandler) Create(c *fiber.Ctx) error {
 // @Accept json
 // @Produce json
 // @Param id path int true "Author ID"
-// @Param author body author.Author true "Updated author data (all fields are optional for partial updates)"
+// @Param author body author.Author true "Updated author data (all fields are optional for partial updates. linkedinUrl can be updated or cleared, must be a valid HTTPS URL if provided)"
 // @Success 200 {object} response.Response{data=author.Author} "Updated author"
 // @Failure 400 {object} response.Response{error=string} "Bad request - invalid input or validation error"
 // @Failure 401 {object} response.Response{error=string} "Unauthorized - authentication required"
@@ -181,6 +189,14 @@ func (h *AuthorHandler) Update(c *fiber.Ctx) error {
 				}
 				existing.Bio = req.Bio
 			}
+			if _, ok := bodyMap["linkedinUrl"]; ok {
+				if req.LinkedinURL != "" {
+					if err := validation.ValidateURL(req.LinkedinURL); err != nil {
+						return response.BadRequest(c, "Invalid LinkedIn URL: "+err.Error())
+					}
+				}
+				existing.LinkedinURL = req.LinkedinURL
+			}
 		}
 	}
 
@@ -224,5 +240,89 @@ func (h *AuthorHandler) Delete(c *fiber.Ctx) error {
 
 	return response.Success(c, fiber.Map{
 		"message": "Author deleted successfully",
+	})
+}
+
+// UploadImage godoc
+// @Summary Upload author image
+// @Description Upload or replace profile image for an author. Requires admin or editor role.
+// @Tags Authors
+// @Security BearerAuth
+// @Accept multipart/form-data
+// @Produce json
+// @Param id path int true "Author ID"
+// @Param image formData file true "Image file (max 10MB, allowed types: JPEG, PNG, WebP, GIF)"
+// @Success 200 {object} response.Response{data=author.Author} "Author with updated image URL"
+// @Failure 400 {object} response.Response{error=string} "Bad request - invalid ID, missing file, or validation error"
+// @Failure 401 {object} response.Response{error=string} "Unauthorized - authentication required"
+// @Failure 403 {object} response.Response{error=string} "Forbidden - requires admin or editor role"
+// @Failure 404 {object} response.Response{error=string} "Author not found"
+// @Failure 500 {object} response.Response{error=string} "Internal server error"
+// @Router /api/v1/authors/{id}/image [post]
+func (h *AuthorHandler) UploadImage(c *fiber.Ctx) error {
+	// Parse author ID
+	id, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	if err != nil {
+		return response.BadRequest(c, "Invalid author ID")
+	}
+
+	// Get file from form
+	file, err := c.FormFile("image")
+	if err != nil {
+		return response.BadRequest(c, "No image file provided")
+	}
+
+	// Validate image file
+	if err := validation.ValidateImageFile(file); err != nil {
+		return response.BadRequest(c, err.Error())
+	}
+
+	// Upload image
+	updatedAuthor, err := h.service.UploadImage(uint(id), file)
+	if err != nil {
+		if err.Error() == "record not found" {
+			return response.NotFound(c, "Author not found")
+		}
+		return response.InternalError(c, "Failed to upload image: "+err.Error())
+	}
+
+	return response.Success(c, updatedAuthor)
+}
+
+// DeleteImage godoc
+// @Summary Delete author image
+// @Description Delete the profile image of an author. Requires admin or editor role.
+// @Tags Authors
+// @Security BearerAuth
+// @Accept json
+// @Produce json
+// @Param id path int true "Author ID"
+// @Success 200 {object} response.Response{data=map[string]string} "Image deleted successfully"
+// @Failure 400 {object} response.Response{error=string} "Bad request - invalid ID or author has no image"
+// @Failure 401 {object} response.Response{error=string} "Unauthorized - authentication required"
+// @Failure 403 {object} response.Response{error=string} "Forbidden - requires admin or editor role"
+// @Failure 404 {object} response.Response{error=string} "Author not found"
+// @Failure 500 {object} response.Response{error=string} "Internal server error"
+// @Router /api/v1/authors/{id}/image [delete]
+func (h *AuthorHandler) DeleteImage(c *fiber.Ctx) error {
+	// Parse author ID
+	id, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	if err != nil {
+		return response.BadRequest(c, "Invalid author ID")
+	}
+
+	// Delete image
+	if err := h.service.DeleteImage(uint(id)); err != nil {
+		if err.Error() == "record not found" {
+			return response.NotFound(c, "Author not found")
+		}
+		if err.Error() == "author has no image to delete" {
+			return response.BadRequest(c, err.Error())
+		}
+		return response.InternalError(c, "Failed to delete image: "+err.Error())
+	}
+
+	return response.Success(c, fiber.Map{
+		"message": "Image deleted successfully",
 	})
 }

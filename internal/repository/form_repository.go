@@ -11,12 +11,12 @@ import (
 type FormRepository interface {
 	Create(submission *form.FormSubmission) error
 	GetAll(query form.GetSubmissionsQuery) ([]form.FormSubmission, int64, error)
-	GetByID(id string) (*form.FormSubmission, error)
+	GetByID(id uint) (*form.FormSubmission, error)
 	GetByCategory(category string, page, limit int) ([]form.FormSubmission, int64, error)
-	Delete(id string) error
-	BulkDelete(ids []string) (int64, error)
+	Delete(id uint) error
+	BulkDelete(ids []uint) (int64, error)
 	GetStats() (*form.SubmissionStats, error)
-	UpdateStatus(id string, status form.FormStatus, processedBy *uint) error
+	UpdateStatus(id uint, status form.FormStatus, processedBy *uint) error
 }
 
 type formRepository struct {
@@ -108,9 +108,9 @@ func (r *formRepository) GetAll(query form.GetSubmissionsQuery) ([]form.FormSubm
 	return submissions, total, err
 }
 
-func (r *formRepository) GetByID(id string) (*form.FormSubmission, error) {
+func (r *formRepository) GetByID(id uint) (*form.FormSubmission, error) {
 	var submission form.FormSubmission
-	err := r.db.First(&submission, "id = ?", id).Error
+	err := r.db.First(&submission, id).Error
 	if err != nil {
 		return nil, err
 	}
@@ -139,8 +139,8 @@ func (r *formRepository) GetByCategory(category string, page, limit int) ([]form
 	return submissions, total, err
 }
 
-func (r *formRepository) Delete(id string) error {
-	result := r.db.Delete(&form.FormSubmission{}, "id = ?", id)
+func (r *formRepository) Delete(id uint) error {
+	result := r.db.Delete(&form.FormSubmission{}, id)
 	if result.Error != nil {
 		return result.Error
 	}
@@ -150,7 +150,7 @@ func (r *formRepository) Delete(id string) error {
 	return nil
 }
 
-func (r *formRepository) BulkDelete(ids []string) (int64, error) {
+func (r *formRepository) BulkDelete(ids []uint) (int64, error) {
 	result := r.db.Where("id IN ?", ids).Delete(&form.FormSubmission{})
 	if result.Error != nil {
 		return 0, result.Error
@@ -238,7 +238,7 @@ func (r *formRepository) GetStats() (*form.SubmissionStats, error) {
 	return stats, nil
 }
 
-func (r *formRepository) UpdateStatus(id string, status form.FormStatus, processedBy *uint) error {
+func (r *formRepository) UpdateStatus(id uint, status form.FormStatus, processedBy *uint) error {
 	updates := map[string]interface{}{
 		"status": status,
 	}

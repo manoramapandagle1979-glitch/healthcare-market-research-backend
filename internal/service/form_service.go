@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/healthcare-market-research/backend/internal/cache"
 	"github.com/healthcare-market-research/backend/internal/domain/form"
 	"github.com/healthcare-market-research/backend/internal/repository"
@@ -13,12 +12,12 @@ import (
 type FormService interface {
 	Create(req *form.CreateSubmissionRequest) (*form.SubmissionResponse, error)
 	GetAll(query form.GetSubmissionsQuery) ([]form.FormSubmission, int64, error)
-	GetByID(id string) (*form.FormSubmission, error)
+	GetByID(id uint) (*form.FormSubmission, error)
 	GetByCategory(category string, page, limit int) ([]form.FormSubmission, int64, error)
-	Delete(id string) error
-	BulkDelete(ids []string) (int64, error)
+	Delete(id uint) error
+	BulkDelete(ids []uint) (int64, error)
 	GetStats() (*form.SubmissionStats, error)
-	UpdateStatus(id string, status form.FormStatus, processedBy *uint) error
+	UpdateStatus(id uint, status form.FormStatus, processedBy *uint) error
 }
 
 type formService struct {
@@ -40,16 +39,12 @@ func (s *formService) Create(req *form.CreateSubmissionRequest) (*form.Submissio
 		return nil, err
 	}
 
-	// Generate unique ID with prefix
-	submissionID := "sub_" + uuid.New().String()
-
 	// Set default metadata timestamp if not provided
 	if req.Metadata.SubmittedAt == "" {
 		req.Metadata.SubmittedAt = time.Now().Format(time.RFC3339)
 	}
 
 	submission := &form.FormSubmission{
-		ID:       submissionID,
 		Category: req.Category,
 		Status:   form.StatusPending,
 		Data:     req.Data,
@@ -65,7 +60,7 @@ func (s *formService) Create(req *form.CreateSubmissionRequest) (*form.Submissio
 
 	return &form.SubmissionResponse{
 		Success:      true,
-		SubmissionID: submissionID,
+		SubmissionID: submission.ID,
 		Category:     req.Category,
 		Message:      "Form submitted successfully",
 		CreatedAt:    submission.CreatedAt,
@@ -140,8 +135,8 @@ func (s *formService) GetAll(query form.GetSubmissionsQuery) ([]form.FormSubmiss
 	return s.repo.GetAll(query)
 }
 
-func (s *formService) GetByID(id string) (*form.FormSubmission, error) {
-	cacheKey := fmt.Sprintf("form:id:%s", id)
+func (s *formService) GetByID(id uint) (*form.FormSubmission, error) {
+	cacheKey := fmt.Sprintf("form:id:%d", id)
 
 	var submission form.FormSubmission
 
@@ -181,7 +176,7 @@ func (s *formService) GetByCategory(category string, page, limit int) ([]form.Fo
 	return res.Submissions, res.Total, nil
 }
 
-func (s *formService) Delete(id string) error {
+func (s *formService) Delete(id uint) error {
 	err := s.repo.Delete(id)
 	if err != nil {
 		return err
@@ -189,12 +184,12 @@ func (s *formService) Delete(id string) error {
 
 	// Invalidate caches
 	cache.DeletePattern("forms:*")
-	cache.Delete(fmt.Sprintf("form:id:%s", id))
+	cache.Delete(fmt.Sprintf("form:id:%d", id))
 
 	return nil
 }
 
-func (s *formService) BulkDelete(ids []string) (int64, error) {
+func (s *formService) BulkDelete(ids []uint) (int64, error) {
 	if len(ids) == 0 {
 		return 0, fmt.Errorf("no IDs provided")
 	}
@@ -207,7 +202,7 @@ func (s *formService) BulkDelete(ids []string) (int64, error) {
 	// Invalidate caches
 	cache.DeletePattern("forms:*")
 	for _, id := range ids {
-		cache.Delete(fmt.Sprintf("form:id:%s", id))
+		cache.Delete(fmt.Sprintf("form:id:%d", id))
 	}
 
 	return deletedCount, nil
@@ -229,7 +224,7 @@ func (s *formService) GetStats() (*form.SubmissionStats, error) {
 	return &stats, nil
 }
 
-func (s *formService) UpdateStatus(id string, status form.FormStatus, processedBy *uint) error {
+func (s *formService) UpdateStatus(id uint, status form.FormStatus, processedBy *uint) error {
 	// Validate status
 	if status != form.StatusPending && status != form.StatusProcessed && status != form.StatusArchived {
 		return fmt.Errorf("invalid status: must be 'pending', 'processed', or 'archived'")
@@ -242,7 +237,7 @@ func (s *formService) UpdateStatus(id string, status form.FormStatus, processedB
 
 	// Invalidate caches
 	cache.DeletePattern("forms:*")
-	cache.Delete(fmt.Sprintf("form:id:%s", id))
+	cache.Delete(fmt.Sprintf("form:id:%d", id))
 
 	return nil
 }

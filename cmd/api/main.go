@@ -72,6 +72,15 @@ import (
 
 // @tag.name Forms
 // @tag.description Form submission management (contact forms, sample requests)
+
+// @tag.name Report Images
+// @tag.description Internal image management for reports (admin/editor only)
+
+// @tag.name Blogs
+// @tag.description Blog post management and publishing
+
+// @tag.name PressReleases
+// @tag.description Press release management and publishing
 func main() {
 	// Load .env file
 	if err := godotenv.Load(); err != nil {
@@ -111,15 +120,22 @@ func main() {
 	authorRepo := repository.NewAuthorRepository(db.DB)
 	auditRepo := repository.NewAuditRepository(db.DB)
 	formRepo := repository.NewFormRepository(db.DB)
+	reportImageRepo := repository.NewReportImageRepository(db.DB)
+	blogRepo := repository.NewBlogRepository(db.DB)
+	pressReleaseRepo := repository.NewPressReleaseRepository(db.DB)
 
 	// Initialize services
 	userService := service.NewUserService(userRepo)
 	authService := service.NewAuthService(userRepo, &cfg.Auth)
 	categoryService := service.NewCategoryService(categoryRepo)
-	reportService := service.NewReportService(reportRepo)
-	authorService := service.NewAuthorService(authorRepo)
+	cloudflareService := service.NewCloudflareImagesService(&cfg.Cloudflare)
+	reportService := service.NewReportService(reportRepo, reportImageRepo, cloudflareService)
+	authorService := service.NewAuthorService(authorRepo, cloudflareService)
 	auditService := service.NewAuditService(auditRepo)
 	formService := service.NewFormService(formRepo)
+	reportImageService := service.NewReportImageService(reportImageRepo, reportRepo, cloudflareService)
+	blogService := service.NewBlogService(blogRepo)
+	pressReleaseService := service.NewPressReleaseService(pressReleaseRepo)
 
 	// Initialize handlers
 	healthHandler := handler.NewHealthHandler()
@@ -131,6 +147,9 @@ func main() {
 	auditHandler := handler.NewAuditHandler(auditService)
 	roleHandler := handler.NewRoleHandler()
 	formHandler := handler.NewFormHandler(formService)
+	reportImageHandler := handler.NewReportImageHandler(reportImageService)
+	blogHandler := handler.NewBlogHandler(blogService)
+	pressReleaseHandler := handler.NewPressReleaseHandler(pressReleaseService)
 
 	// Initialize Fiber app
 	app := fiber.New(fiber.Config{
@@ -188,6 +207,13 @@ func main() {
 	v1.Put("/reports/:id", middleware.RequireAuth(authService), middleware.RequireRole("admin", "editor"), reportHandler.Update)
 	v1.Delete("/reports/:id", middleware.RequireAuth(authService), middleware.RequireRole("admin"), reportHandler.Delete)
 
+	// Report image routes (admin/editor only)
+	v1.Post("/reports/:reportId/images", middleware.RequireAuth(authService), middleware.RequireRole("admin", "editor"), reportImageHandler.UploadImage)
+	v1.Get("/reports/:reportId/images", middleware.RequireAuth(authService), middleware.RequireRole("admin", "editor"), reportImageHandler.ListImages)
+	v1.Get("/reports/images/:imageId", middleware.RequireAuth(authService), middleware.RequireRole("admin", "editor"), reportImageHandler.GetByID)
+	v1.Patch("/reports/images/:imageId", middleware.RequireAuth(authService), middleware.RequireRole("admin", "editor"), reportImageHandler.UpdateMetadata)
+	v1.Delete("/reports/images/:imageId", middleware.RequireAuth(authService), middleware.RequireRole("admin", "editor"), reportImageHandler.DeleteImage)
+
 	// Category routes (public read, protected write)
 	v1.Get("/categories", categoryHandler.GetAll)
 	v1.Get("/categories/:slug", categoryHandler.GetBySlug)
@@ -199,6 +225,8 @@ func main() {
 	v1.Post("/authors", middleware.RequireAuth(authService), middleware.RequireRole("admin", "editor"), authorHandler.Create)
 	v1.Put("/authors/:id", middleware.RequireAuth(authService), middleware.RequireRole("admin", "editor"), authorHandler.Update)
 	v1.Delete("/authors/:id", middleware.RequireAuth(authService), middleware.RequireRole("admin"), authorHandler.Delete)
+	v1.Post("/authors/:id/image", middleware.RequireAuth(authService), middleware.RequireRole("admin", "editor"), authorHandler.UploadImage)
+	v1.Delete("/authors/:id/image", middleware.RequireAuth(authService), middleware.RequireRole("admin", "editor"), authorHandler.DeleteImage)
 
 	// Audit log routes (admin only)
 	auditLogs := v1.Group("/audit-logs", middleware.RequireAuth(authService), middleware.RequireRole("admin"))
@@ -226,6 +254,26 @@ func main() {
 	forms.Delete("/submissions/:id", middleware.RequireAuth(authService), middleware.RequireRole("admin"), formHandler.Delete)
 	forms.Delete("/submissions", middleware.RequireAuth(authService), middleware.RequireRole("admin"), formHandler.BulkDelete)
 	forms.Patch("/submissions/:id/status", middleware.RequireAuth(authService), middleware.RequireRole("admin", "editor"), formHandler.UpdateStatus)
+
+	// Blog routes
+	v1.Get("/blogs", blogHandler.GetAll)
+	v1.Get("/blogs/:id", blogHandler.GetByID)
+	v1.Post("/blogs", middleware.RequireAuth(authService), middleware.RequireRole("admin", "editor"), blogHandler.Create)
+	v1.Put("/blogs/:id", middleware.RequireAuth(authService), middleware.RequireRole("admin", "editor"), blogHandler.Update)
+	v1.Delete("/blogs/:id", middleware.RequireAuth(authService), middleware.RequireRole("admin"), blogHandler.Delete)
+	v1.Patch("/blogs/:id/submit-review", middleware.RequireAuth(authService), middleware.RequireRole("admin", "editor"), blogHandler.SubmitForReview)
+	v1.Patch("/blogs/:id/publish", middleware.RequireAuth(authService), middleware.RequireRole("admin", "editor"), blogHandler.Publish)
+	v1.Patch("/blogs/:id/unpublish", middleware.RequireAuth(authService), middleware.RequireRole("admin", "editor"), blogHandler.Unpublish)
+
+	// Press Release routes
+	v1.Get("/press-releases", pressReleaseHandler.GetAll)
+	v1.Get("/press-releases/:id", pressReleaseHandler.GetByID)
+	v1.Post("/press-releases", middleware.RequireAuth(authService), middleware.RequireRole("admin", "editor"), pressReleaseHandler.Create)
+	v1.Put("/press-releases/:id", middleware.RequireAuth(authService), middleware.RequireRole("admin", "editor"), pressReleaseHandler.Update)
+	v1.Delete("/press-releases/:id", middleware.RequireAuth(authService), middleware.RequireRole("admin"), pressReleaseHandler.Delete)
+	v1.Patch("/press-releases/:id/submit-review", middleware.RequireAuth(authService), middleware.RequireRole("admin", "editor"), pressReleaseHandler.SubmitForReview)
+	v1.Patch("/press-releases/:id/publish", middleware.RequireAuth(authService), middleware.RequireRole("admin", "editor"), pressReleaseHandler.Publish)
+	v1.Patch("/press-releases/:id/unpublish", middleware.RequireAuth(authService), middleware.RequireRole("admin", "editor"), pressReleaseHandler.Unpublish)
 
 	// Graceful shutdown
 	c := make(chan os.Signal, 1)

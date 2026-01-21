@@ -63,17 +63,9 @@ func (k *KeyPlayers) Scan(value interface{}) error {
 
 // ReportSections contains all report content sections
 type ReportSections struct {
-	ExecutiveSummary  string `json:"executiveSummary"`
-	MarketOverview    string `json:"marketOverview"`
-	MarketSize        string `json:"marketSize"`
-	Competitive       string `json:"competitive"`
-	KeyPlayers        string `json:"keyPlayers"`
-	Regional          string `json:"regional"`
-	Trends            string `json:"trends"`
-	Conclusion        string `json:"conclusion"`
-	MarketDetails     string `json:"marketDetails"`
-	KeyFindings       string `json:"keyFindings"`
-	TableOfContents   string `json:"tableOfContents"`
+	KeyPlayers      string `json:"keyPlayers"`
+	MarketDetails   string `json:"marketDetails"`
+	TableOfContents string `json:"tableOfContents"`
 }
 
 func (s ReportSections) Value() (driver.Value, error) {
