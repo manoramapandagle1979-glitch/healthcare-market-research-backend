@@ -50,11 +50,15 @@ type ReportRepository interface {
 }
 
 type reportRepository struct {
-	db *gorm.DB
+	db         *gorm.DB
+	authorRepo AuthorRepository
 }
 
-func NewReportRepository(db *gorm.DB) ReportRepository {
-	return &reportRepository{db: db}
+func NewReportRepository(db *gorm.DB, authorRepo AuthorRepository) ReportRepository {
+	return &reportRepository{
+		db:         db,
+		authorRepo: authorRepo,
+	}
 }
 
 func (r *reportRepository) GetAll(page, limit int) ([]report.Report, int64, error) {
@@ -219,6 +223,12 @@ func (r *reportRepository) GetBySlug(slug string) (*report.ReportWithRelations, 
 		return nil, err
 	}
 
+	// Get authors
+	if len(result.AuthorIDs) > 0 {
+		authors, _ := r.authorRepo.GetByIDs(result.AuthorIDs)
+		result.Authors = authors
+	}
+
 	// Get charts
 	charts, _ := r.GetChartsByReportID(result.ID)
 	result.Charts = charts
@@ -342,6 +352,12 @@ func (r *reportRepository) GetByIDWithRelations(id uint) (*report.ReportWithRela
 	err := r.db.Raw(querySQL, id).Scan(&result).Error
 	if err != nil {
 		return nil, err
+	}
+
+	// Get authors
+	if len(result.AuthorIDs) > 0 {
+		authors, _ := r.authorRepo.GetByIDs(result.AuthorIDs)
+		result.Authors = authors
 	}
 
 	// Get charts

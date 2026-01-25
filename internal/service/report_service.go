@@ -68,20 +68,8 @@ func (s *reportService) GetAll(page, limit int) ([]report.Report, int64, error) 
 }
 
 func (s *reportService) GetByID(id uint) (*report.ReportWithRelations, error) {
-	cacheKey := fmt.Sprintf("report:id:%d", id)
-
-	var rep report.ReportWithRelations
-
-	// Use singleflight-protected cache-aside pattern
-	err := cache.GetOrSet(cacheKey, &rep, 30*time.Minute, func() (interface{}, error) {
-		return s.repo.GetByIDWithRelations(id)
-	})
-
-	if err != nil {
-		return nil, err
-	}
-
-	return &rep, nil
+	// Always fetch fresh data from database (no caching for ID-based access)
+	return s.repo.GetByIDWithRelations(id)
 }
 
 func (s *reportService) GetBySlug(slug string) (*report.ReportWithRelations, error) {
@@ -224,9 +212,8 @@ func (s *reportService) Update(id uint, rep *report.Report, userID uint) error {
 	cache.DeletePattern("reports:total")
 	cache.DeletePattern(fmt.Sprintf("reports:category:*"))
 
-	// Invalidate the specific report cache (old slug and ID)
+	// Invalidate the specific report cache (old slug)
 	cache.Delete(fmt.Sprintf("report:slug:%s", existing.Slug))
-	cache.Delete(fmt.Sprintf("report:id:%d", id))
 
 	// Invalidate new slug if it changed
 	if rep.Slug != existing.Slug {
@@ -263,7 +250,6 @@ func (s *reportService) Delete(id uint) error {
 	cache.DeletePattern("reports:total")
 	cache.DeletePattern(fmt.Sprintf("reports:category:*"))
 	cache.Delete(fmt.Sprintf("report:slug:%s", existing.Slug))
-	cache.Delete(fmt.Sprintf("report:id:%d", id))
 
 	return nil
 }

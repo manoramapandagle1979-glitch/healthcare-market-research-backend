@@ -87,8 +87,8 @@ func (r *blogRepository) GetAll(query blog.GetBlogsQuery) ([]blog.Blog, int64, e
 	offset := (query.Page - 1) * query.Limit
 	db = db.Order("created_at DESC").Offset(offset).Limit(query.Limit)
 
-	// Fetch blogs
-	if err := db.Find(&blogs).Error; err != nil {
+	// Fetch blogs with author and category details
+	if err := db.Preload("Author").Preload("Category").Find(&blogs).Error; err != nil {
 		return nil, 0, err
 	}
 
@@ -97,7 +97,7 @@ func (r *blogRepository) GetAll(query blog.GetBlogsQuery) ([]blog.Blog, int64, e
 
 func (r *blogRepository) GetByID(id uint) (*blog.Blog, error) {
 	var b blog.Blog
-	if err := r.db.First(&b, id).Error; err != nil {
+	if err := r.db.Preload("Author").Preload("Category").First(&b, id).Error; err != nil {
 		return nil, err
 	}
 	return &b, nil
@@ -105,7 +105,7 @@ func (r *blogRepository) GetByID(id uint) (*blog.Blog, error) {
 
 func (r *blogRepository) GetBySlug(slug string) (*blog.Blog, error) {
 	var b blog.Blog
-	if err := r.db.Where("slug = ?", slug).First(&b).Error; err != nil {
+	if err := r.db.Preload("Author").Preload("Category").Where("slug = ?", slug).First(&b).Error; err != nil {
 		return nil, err
 	}
 	return &b, nil

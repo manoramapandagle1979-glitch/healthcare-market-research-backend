@@ -5,6 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"time"
+
+	"github.com/healthcare-market-research/backend/internal/domain/author"
+	"github.com/healthcare-market-research/backend/internal/domain/category"
 )
 
 // PressReleaseStatus represents the status of a press release
@@ -50,6 +53,8 @@ type PressRelease struct {
 	CategoryID  uint                   `json:"categoryId" gorm:"not null;index"`
 	Tags        string                 `json:"tags" gorm:"type:varchar(500)"`
 	AuthorID    uint                   `json:"authorId" gorm:"not null;index"`
+	Author      *author.Author         `json:"author,omitempty" gorm:"foreignKey:AuthorID"`
+	Category    *category.Category     `json:"category,omitempty" gorm:"foreignKey:CategoryID"`
 	Status      PressReleaseStatus     `json:"status" gorm:"type:varchar(20);default:'draft';index"`
 	PublishDate *time.Time             `json:"publishDate,omitempty" gorm:"index"`
 	Location    string                 `json:"location,omitempty" gorm:"type:varchar(255)"`

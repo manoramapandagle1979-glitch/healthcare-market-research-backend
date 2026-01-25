@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"time"
+
+	"github.com/healthcare-market-research/backend/internal/domain/author"
 )
 
 // MarketMetrics contains market size and forecast data
@@ -243,8 +245,8 @@ type ReportVersion struct {
 type ReportWithRelations struct {
 	Report
 	CategoryName string           `json:"category_name,omitempty"`
+	Authors      []author.Author  `json:"authors,omitempty" gorm:"-"`
 	Charts       []ChartMetadata  `json:"charts,omitempty" gorm:"-"`
-	Author       *UserReference   `json:"author,omitempty" gorm:"-"`
 	Versions     []ReportVersion  `json:"versions,omitempty" gorm:"-"`
 }
 

@@ -87,8 +87,8 @@ func (r *pressReleaseRepository) GetAll(query press_release.GetPressReleasesQuer
 	offset := (query.Page - 1) * query.Limit
 	db = db.Order("created_at DESC").Offset(offset).Limit(query.Limit)
 
-	// Fetch press releases
-	if err := db.Find(&pressReleases).Error; err != nil {
+	// Fetch press releases with author and category details
+	if err := db.Preload("Author").Preload("Category").Find(&pressReleases).Error; err != nil {
 		return nil, 0, err
 	}
 
@@ -97,7 +97,7 @@ func (r *pressReleaseRepository) GetAll(query press_release.GetPressReleasesQuer
 
 func (r *pressReleaseRepository) GetByID(id uint) (*press_release.PressRelease, error) {
 	var pr press_release.PressRelease
-	if err := r.db.First(&pr, id).Error; err != nil {
+	if err := r.db.Preload("Author").Preload("Category").First(&pr, id).Error; err != nil {
 		return nil, err
 	}
 	return &pr, nil
@@ -105,7 +105,7 @@ func (r *pressReleaseRepository) GetByID(id uint) (*press_release.PressRelease, 
 
 func (r *pressReleaseRepository) GetBySlug(slug string) (*press_release.PressRelease, error) {
 	var pr press_release.PressRelease
-	if err := r.db.Where("slug = ?", slug).First(&pr).Error; err != nil {
+	if err := r.db.Preload("Author").Preload("Category").Where("slug = ?", slug).First(&pr).Error; err != nil {
 		return nil, err
 	}
 	return &pr, nil

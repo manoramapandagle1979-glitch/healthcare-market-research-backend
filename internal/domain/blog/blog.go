@@ -5,6 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"time"
+
+	"github.com/healthcare-market-research/backend/internal/domain/author"
+	"github.com/healthcare-market-research/backend/internal/domain/category"
 )
 
 // BlogStatus represents the status of a blog post
@@ -42,22 +45,24 @@ func (m *BlogMetadata) Scan(value interface{}) error {
 
 // Blog represents a blog post in the database
 type Blog struct {
-	ID          uint         `json:"id" gorm:"primaryKey"`
-	Title       string       `json:"title" gorm:"type:varchar(200);not null"`
-	Slug        string       `json:"slug" gorm:"type:varchar(250);uniqueIndex;not null"`
-	Excerpt     string       `json:"excerpt" gorm:"type:varchar(500);not null"`
-	Content     string       `json:"content" gorm:"type:text;not null"`
-	CategoryID  uint         `json:"categoryId" gorm:"not null;index"`
-	Tags        string       `json:"tags" gorm:"type:varchar(500)"`
-	AuthorID    uint         `json:"authorId" gorm:"not null;index"`
-	Status      BlogStatus   `json:"status" gorm:"type:varchar(20);default:'draft';index"`
-	PublishDate *time.Time   `json:"publishDate,omitempty" gorm:"index"`
-	Location    string       `json:"location,omitempty" gorm:"type:varchar(255)"`
-	Metadata    BlogMetadata `json:"metadata" gorm:"type:jsonb"`
-	ReviewedBy  *uint        `json:"reviewedBy,omitempty" gorm:"index"`
-	ReviewedAt  *time.Time   `json:"reviewedAt,omitempty"`
-	CreatedAt   time.Time    `json:"createdAt"`
-	UpdatedAt   time.Time    `json:"updatedAt"`
+	ID          uint           `json:"id" gorm:"primaryKey"`
+	Title       string         `json:"title" gorm:"type:varchar(200);not null"`
+	Slug        string         `json:"slug" gorm:"type:varchar(250);uniqueIndex;not null"`
+	Excerpt     string         `json:"excerpt" gorm:"type:varchar(500);not null"`
+	Content     string         `json:"content" gorm:"type:text;not null"`
+	CategoryID  uint           `json:"categoryId" gorm:"not null;index"`
+	Tags        string         `json:"tags" gorm:"type:varchar(500)"`
+	AuthorID    uint               `json:"authorId" gorm:"not null;index"`
+	Author      *author.Author     `json:"author,omitempty" gorm:"foreignKey:AuthorID"`
+	Category    *category.Category `json:"category,omitempty" gorm:"foreignKey:CategoryID"`
+	Status      BlogStatus         `json:"status" gorm:"type:varchar(20);default:'draft';index"`
+	PublishDate *time.Time     `json:"publishDate,omitempty" gorm:"index"`
+	Location    string         `json:"location,omitempty" gorm:"type:varchar(255)"`
+	Metadata    BlogMetadata   `json:"metadata" gorm:"type:jsonb"`
+	ReviewedBy  *uint          `json:"reviewedBy,omitempty" gorm:"index"`
+	ReviewedAt  *time.Time     `json:"reviewedAt,omitempty"`
+	CreatedAt   time.Time      `json:"createdAt"`
+	UpdatedAt   time.Time      `json:"updatedAt"`
 }
 
 // TableName specifies the table name for GORM

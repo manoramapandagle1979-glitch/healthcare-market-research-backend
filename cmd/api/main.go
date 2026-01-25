@@ -116,8 +116,8 @@ func main() {
 	// Initialize repositories
 	userRepo := repository.NewUserRepository(db.DB)
 	categoryRepo := repository.NewCategoryRepository(db.DB)
-	reportRepo := repository.NewReportRepository(db.DB)
 	authorRepo := repository.NewAuthorRepository(db.DB)
+	reportRepo := repository.NewReportRepository(db.DB, authorRepo)
 	auditRepo := repository.NewAuditRepository(db.DB)
 	formRepo := repository.NewFormRepository(db.DB)
 	reportImageRepo := repository.NewReportImageRepository(db.DB)

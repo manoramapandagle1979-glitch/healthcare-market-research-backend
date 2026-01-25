@@ -8,6 +8,7 @@ import (
 type AuthorRepository interface {
 	GetAll(page, limit int, search string) ([]author.Author, int64, error)
 	GetByID(id uint) (*author.Author, error)
+	GetByIDs(ids []uint) ([]author.Author, error)
 	Create(author *author.Author) error
 	Update(author *author.Author) error
 	Delete(id uint) error
@@ -57,6 +58,20 @@ func (r *authorRepository) GetByID(id uint) (*author.Author, error) {
 		return nil, err
 	}
 	return &auth, nil
+}
+
+func (r *authorRepository) GetByIDs(ids []uint) ([]author.Author, error) {
+	if len(ids) == 0 {
+		return []author.Author{}, nil
+	}
+
+	var authors []author.Author
+	err := r.db.Where("id IN ?", ids).Order("name ASC").Find(&authors).Error
+	if err != nil {
+		return nil, err
+	}
+
+	return authors, nil
 }
 
 func (r *authorRepository) Create(auth *author.Author) error {
