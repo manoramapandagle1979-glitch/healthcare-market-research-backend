@@ -15,11 +15,15 @@ import (
 )
 
 type ReportHandler struct {
-	service service.ReportService
+	service    service.ReportService
+	authorRepo repository.AuthorRepository
 }
 
-func NewReportHandler(service service.ReportService) *ReportHandler {
-	return &ReportHandler{service: service}
+func NewReportHandler(service service.ReportService, authorRepo repository.AuthorRepository) *ReportHandler {
+	return &ReportHandler{
+		service:    service,
+		authorRepo: authorRepo,
+	}
 }
 
 // Helper functions
@@ -72,6 +76,7 @@ func getUserID(c *fiber.Ctx) (uint, error) {
 // @Param category query string false "Filter by category slug"
 // @Param geography query string false "Filter by geography (comma-separated, e.g., 'North America,Europe')"
 // @Param search query string false "Search in title, summary, and description"
+// @Param deleted query string false "Admin only: Show deleted reports (true/false, default: false)"
 // @Param created_by query int false "Admin only: Filter by creator user ID"
 // @Param updated_by query int false "Admin only: Filter by last updater user ID"
 // @Param created_after query string false "Admin only: Filter by created date (ISO 8601, e.g., 2024-01-01T00:00:00Z)"
@@ -99,6 +104,7 @@ func (h *ReportHandler) GetAll(c *fiber.Ctx) error {
 	category := c.Query("category")
 	geographyParam := c.Query("geography")
 	search := c.Query("search")
+	deletedParam := c.Query("deleted")
 
 	// Admin filters
 	var createdBy *uint
@@ -156,11 +162,14 @@ func (h *ReportHandler) GetAll(c *fiber.Ctx) error {
 	var total int64
 	var err error
 
+	// Parse deleted parameter
+	showDeleted := deletedParam == "true"
+
 	// If any filters are provided, use the filtered endpoint
 	hasFilters := status != "" || category != "" || geographyParam != "" || search != "" ||
 		createdBy != nil || updatedBy != nil ||
 		createdAfter != nil || createdBefore != nil || updatedAfter != nil || updatedBefore != nil ||
-		publishedAfter != nil || publishedBefore != nil
+		publishedAfter != nil || publishedBefore != nil || showDeleted
 
 	if hasFilters {
 		// Parse geography into array
@@ -186,6 +195,7 @@ func (h *ReportHandler) GetAll(c *fiber.Ctx) error {
 			UpdatedBefore:   updatedBefore,
 			PublishedAfter:  publishedAfter,
 			PublishedBefore: publishedBefore,
+			ShowDeleted:     showDeleted,
 			Page:            page,
 			Limit:           limit,
 		}
@@ -298,6 +308,67 @@ func (h *ReportHandler) GetByCategorySlug(c *fiber.Ctx) error {
 	}
 
 	return response.SuccessWithMeta(c, reports, meta)
+}
+
+// GetByAuthorID godoc
+// @Summary Get reports by author ID
+// @Description Get a paginated list of reports that include the specified author
+// @Tags Reports
+// @Param id path int true "Author ID"
+// @Param page query int false "Page number (default: 1)"
+// @Param limit query int false "Items per page (default: 20, max: 100)"
+// @Success 200 {object} response.Response{data=[]report.Report,meta=response.Meta}
+// @Failure 400 {object} response.Response "Invalid author ID"
+// @Failure 404 {object} response.Response "Author not found"
+// @Failure 500 {object} response.Response "Internal server error"
+// @Router /api/v1/reports/author/{id} [get]
+func (h *ReportHandler) GetByAuthorID(c *fiber.Ctx) error {
+	// Parse and validate author ID
+	authorID, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	if err != nil {
+		return response.BadRequest(c, "Invalid author ID")
+	}
+
+	// Validate author exists
+	_, err = h.authorRepo.GetByID(uint(authorID))
+	if err != nil {
+		return response.NotFound(c, "Author not found")
+	}
+
+	// Parse pagination parameters
+	page, _ := strconv.Atoi(c.Query("page", "1"))
+	limit, _ := strconv.Atoi(c.Query("limit", "20"))
+
+	// Validate and normalize pagination
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 || limit > 100 {
+		limit = 20
+	}
+
+	// Fetch reports
+	reports, total, err := h.service.GetByAuthorID(uint(authorID), page, limit)
+	if err != nil {
+		return response.InternalError(c, "Failed to fetch reports")
+	}
+
+	// Strip admin fields if user is not admin/editor
+	responseData := reports
+	if !isAdminOrEditor(c) {
+		responseData = stripAdminFields(reports)
+	}
+
+	// Calculate pagination metadata
+	totalPages := int(math.Ceil(float64(total) / float64(limit)))
+	meta := &response.Meta{
+		Page:       page,
+		Limit:      limit,
+		Total:      total,
+		TotalPages: totalPages,
+	}
+
+	return response.SuccessWithMeta(c, responseData, meta)
 }
 
 // Search godoc
@@ -470,14 +541,14 @@ func (h *ReportHandler) Update(c *fiber.Ctx) error {
 }
 
 // Delete godoc
-// @Summary Delete a report
-// @Description Delete a healthcare market research report by ID. Permanently removes the report and all associated data. Requires admin role.
+// @Summary Hard delete a report (permanent)
+// @Description Permanently delete a healthcare market research report by ID. This action cannot be undone. The report and all associated data (images, versions, charts) will be permanently removed. Requires admin role.
 // @Tags Reports
 // @Security BearerAuth
 // @Accept json
 // @Produce json
 // @Param id path int true "Report ID"
-// @Success 200 {object} response.Response{data=map[string]string} "Report deleted successfully"
+// @Success 200 {object} response.Response{data=map[string]string} "Report permanently deleted successfully"
 // @Failure 400 {object} response.Response{error=string} "Bad request - invalid ID"
 // @Failure 401 {object} response.Response{error=string} "Unauthorized - authentication required"
 // @Failure 403 {object} response.Response{error=string} "Forbidden - requires admin role"
@@ -498,6 +569,72 @@ func (h *ReportHandler) Delete(c *fiber.Ctx) error {
 	}
 
 	return response.Success(c, fiber.Map{
-		"message": "Report deleted successfully",
+		"message": "Report permanently deleted successfully",
+	})
+}
+
+// SoftDelete godoc
+// @Summary Soft delete a report
+// @Description Soft delete a report by marking it as deleted. The report can be restored later. Requires admin or editor role.
+// @Tags Reports
+// @Security BearerAuth
+// @Accept json
+// @Produce json
+// @Param id path int true "Report ID"
+// @Success 200 {object} response.Response{data=map[string]string} "Report soft deleted successfully"
+// @Failure 400 {object} response.Response{error=string} "Bad request - invalid ID"
+// @Failure 401 {object} response.Response{error=string} "Unauthorized"
+// @Failure 403 {object} response.Response{error=string} "Forbidden - requires admin or editor role"
+// @Failure 404 {object} response.Response{error=string} "Report not found"
+// @Failure 500 {object} response.Response{error=string} "Internal server error"
+// @Router /api/v1/reports/{id}/soft-delete [patch]
+func (h *ReportHandler) SoftDelete(c *fiber.Ctx) error {
+	id, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	if err != nil {
+		return response.BadRequest(c, "Invalid report ID")
+	}
+
+	if err := h.service.SoftDelete(uint(id)); err != nil {
+		if err.Error() == "record not found" {
+			return response.NotFound(c, "Report not found")
+		}
+		return response.InternalError(c, "Failed to soft delete report")
+	}
+
+	return response.Success(c, fiber.Map{
+		"message": "Report soft deleted successfully",
+	})
+}
+
+// Restore godoc
+// @Summary Restore a soft-deleted report
+// @Description Restore a previously soft-deleted report. Requires admin role.
+// @Tags Reports
+// @Security BearerAuth
+// @Accept json
+// @Produce json
+// @Param id path int true "Report ID"
+// @Success 200 {object} response.Response{data=map[string]string} "Report restored successfully"
+// @Failure 400 {object} response.Response{error=string} "Bad request - invalid ID"
+// @Failure 401 {object} response.Response{error=string} "Unauthorized"
+// @Failure 403 {object} response.Response{error=string} "Forbidden - requires admin role"
+// @Failure 404 {object} response.Response{error=string} "Report not found"
+// @Failure 500 {object} response.Response{error=string} "Internal server error"
+// @Router /api/v1/reports/{id}/restore [patch]
+func (h *ReportHandler) Restore(c *fiber.Ctx) error {
+	id, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	if err != nil {
+		return response.BadRequest(c, "Invalid report ID")
+	}
+
+	if err := h.service.Restore(uint(id)); err != nil {
+		if err.Error() == "record not found" {
+			return response.NotFound(c, "Report not found")
+		}
+		return response.InternalError(c, "Failed to restore report")
+	}
+
+	return response.Success(c, fiber.Map{
+		"message": "Report restored successfully",
 	})
 }

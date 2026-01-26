@@ -29,6 +29,7 @@ type ReportFilters struct {
 	PublishedAfter  *time.Time
 	PublishedBefore *time.Time
 	IncludeDrafts   bool       // For admin, show drafts
+	ShowDeleted     bool       // For admin, show only deleted reports
 }
 
 type ReportRepository interface {
@@ -38,11 +39,14 @@ type ReportRepository interface {
 	GetByID(id uint) (*report.Report, error)
 	GetByIDWithRelations(id uint) (*report.ReportWithRelations, error)
 	GetByCategorySlug(categorySlug string, page, limit int) ([]report.Report, int64, error)
+	GetByAuthorID(authorID uint, page, limit int) ([]report.Report, int64, error)
 	Search(query string, page, limit int) ([]report.Report, int64, error)
 	GetChartsByReportID(reportID uint) ([]report.ChartMetadata, error)
 	Create(report *report.Report) error
 	Update(report *report.Report) error
 	Delete(id uint) error
+	SoftDelete(id uint) error
+	Restore(id uint) error
 	// Version history methods
 	CreateVersion(version *report.ReportVersion) error
 	GetVersionsByReportID(reportID uint) ([]report.ReportVersion, error)
@@ -67,8 +71,8 @@ func (r *reportRepository) GetAll(page, limit int) ([]report.Report, int64, erro
 
 	offset := (page - 1) * limit
 
-	// Return all reports regardless of status
-	countSQL := "SELECT COUNT(*) FROM reports"
+	// Exclude soft-deleted reports
+	countSQL := "SELECT COUNT(*) FROM reports WHERE deleted_at IS NULL"
 	if err := r.db.Raw(countSQL).Scan(&total).Error; err != nil {
 		return nil, 0, err
 	}
@@ -77,6 +81,7 @@ func (r *reportRepository) GetAll(page, limit int) ([]report.Report, int64, erro
 		SELECT r.*, c.name as category_name
 		FROM reports r
 		LEFT JOIN categories c ON r.category_id = c.id
+		WHERE r.deleted_at IS NULL
 		ORDER BY COALESCE(r.publish_date, r.updated_at) DESC
 		LIMIT ? OFFSET ?
 	`
@@ -96,6 +101,15 @@ func (r *reportRepository) GetAllWithFilters(filters ReportFilters) ([]report.Re
 	var conditions []string
 	var args []interface{}
 	var countArgs []interface{}
+
+	// Handle deleted reports filter
+	if filters.ShowDeleted {
+		// Show only deleted reports
+		conditions = append(conditions, "r.deleted_at IS NOT NULL")
+	} else {
+		// Exclude soft-deleted reports (default behavior)
+		conditions = append(conditions, "r.deleted_at IS NULL")
+	}
 
 	// Status filter
 	if filters.Status != "" {
@@ -215,7 +229,7 @@ func (r *reportRepository) GetBySlug(slug string) (*report.ReportWithRelations, 
 		SELECT r.*, c.name as category_name
 		FROM reports r
 		INNER JOIN categories c ON r.category_id = c.id AND c.is_active = true
-		WHERE r.slug = $1
+		WHERE r.slug = $1 AND r.deleted_at IS NULL
 	`
 
 	err := r.db.Raw(querySQL, slug).Scan(&result).Error
@@ -250,7 +264,7 @@ func (r *reportRepository) GetByCategorySlug(categorySlug string, page, limit in
 		SELECT COUNT(*)
 		FROM reports r
 		INNER JOIN categories c ON r.category_id = c.id
-		WHERE c.slug = ? AND c.is_active = true
+		WHERE c.slug = ? AND c.is_active = true AND r.deleted_at IS NULL
 	`
 	if err := r.db.Raw(countSQL, categorySlug).Scan(&total).Error; err != nil {
 		return nil, 0, err
@@ -260,12 +274,45 @@ func (r *reportRepository) GetByCategorySlug(categorySlug string, page, limit in
 		SELECT r.*, c.name as category_name
 		FROM reports r
 		INNER JOIN categories c ON r.category_id = c.id
-		WHERE c.slug = ? AND c.is_active = true
+		WHERE c.slug = ? AND c.is_active = true AND r.deleted_at IS NULL
 		ORDER BY COALESCE(r.publish_date, r.updated_at) DESC
 		LIMIT ? OFFSET ?
 	`
 
 	err := r.db.Raw(querySQL, categorySlug, limit, offset).Scan(&reports).Error
+
+	return reports, total, err
+}
+
+func (r *reportRepository) GetByAuthorID(authorID uint, page, limit int) ([]report.Report, int64, error) {
+	var reports []report.Report
+	var total int64
+	offset := (page - 1) * limit
+
+	// Use @> (contains) operator instead of ? operator to avoid GORM conflicts
+	// Build the JSONB array string to check if author_ids contains the authorID
+	authorIDStr := fmt.Sprintf("[%d]", authorID)
+
+	// Count query - JSONB containment check, exclude soft-deleted
+	countSQL := `
+		SELECT COUNT(*)
+		FROM reports r
+		WHERE r.author_ids::jsonb @> ?::jsonb AND r.deleted_at IS NULL
+	`
+	if err := r.db.Raw(countSQL, authorIDStr).Scan(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	// Data query with category join and pagination, exclude soft-deleted
+	querySQL := `
+		SELECT r.*, c.name as category_name
+		FROM reports r
+		LEFT JOIN categories c ON r.category_id = c.id
+		WHERE r.author_ids::jsonb @> ?::jsonb AND r.deleted_at IS NULL
+		ORDER BY COALESCE(r.publish_date, r.updated_at) DESC
+		LIMIT ? OFFSET ?
+	`
+	err := r.db.Raw(querySQL, authorIDStr, limit, offset).Scan(&reports).Error
 
 	return reports, total, err
 }
@@ -281,7 +328,7 @@ func (r *reportRepository) Search(query string, page, limit int) ([]report.Repor
 		SELECT COUNT(*)
 		FROM reports r
 		LEFT JOIN categories c ON r.category_id = c.id
-		WHERE (r.title ILIKE ? OR r.description ILIKE ? OR r.summary ILIKE ?)
+		WHERE (r.title ILIKE ? OR r.description ILIKE ? OR r.summary ILIKE ?) AND r.deleted_at IS NULL
 	`
 	if err := r.db.Raw(countSQL, searchPattern, searchPattern, searchPattern).Scan(&total).Error; err != nil {
 		return nil, 0, err
@@ -291,7 +338,7 @@ func (r *reportRepository) Search(query string, page, limit int) ([]report.Repor
 		SELECT r.*, c.name as category_name
 		FROM reports r
 		LEFT JOIN categories c ON r.category_id = c.id
-		WHERE (r.title ILIKE ? OR r.description ILIKE ? OR r.summary ILIKE ?)
+		WHERE (r.title ILIKE ? OR r.description ILIKE ? OR r.summary ILIKE ?) AND r.deleted_at IS NULL
 		ORDER BY COALESCE(r.publish_date, r.updated_at) DESC
 		LIMIT ? OFFSET ?
 	`
@@ -346,7 +393,7 @@ func (r *reportRepository) GetByIDWithRelations(id uint) (*report.ReportWithRela
 		SELECT r.*, c.name as category_name
 		FROM reports r
 		INNER JOIN categories c ON r.category_id = c.id AND c.is_active = true
-		WHERE r.id = $1
+		WHERE r.id = $1 AND r.deleted_at IS NULL
 	`
 
 	err := r.db.Raw(querySQL, id).Scan(&result).Error
@@ -392,4 +439,13 @@ func (r *reportRepository) GetLatestVersionNumber(reportID uint) (int, error) {
 		Select("COALESCE(MAX(version_number), 0)").
 		Scan(&maxVersion).Error
 	return maxVersion, err
+}
+
+func (r *reportRepository) SoftDelete(id uint) error {
+	now := time.Now()
+	return r.db.Model(&report.Report{}).Where("id = ?", id).Update("deleted_at", now).Error
+}
+
+func (r *reportRepository) Restore(id uint) error {
+	return r.db.Model(&report.Report{}).Where("id = ?", id).Update("deleted_at", nil).Error
 }

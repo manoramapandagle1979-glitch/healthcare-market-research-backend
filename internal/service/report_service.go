@@ -16,10 +16,13 @@ type ReportService interface {
 	GetByID(id uint) (*report.ReportWithRelations, error)
 	GetBySlug(slug string) (*report.ReportWithRelations, error)
 	GetByCategorySlug(categorySlug string, page, limit int) ([]report.Report, int64, error)
+	GetByAuthorID(authorID uint, page, limit int) ([]report.Report, int64, error)
 	Search(query string, page, limit int) ([]report.Report, int64, error)
 	Create(rep *report.Report, userID uint) error
 	Update(id uint, rep *report.Report, userID uint) error
 	Delete(id uint) error
+	SoftDelete(id uint) error
+	Restore(id uint) error
 }
 
 type reportService struct {
@@ -118,6 +121,11 @@ func (s *reportService) GetByCategorySlug(categorySlug string, page, limit int) 
 	}
 
 	return res.Reports, res.Total, nil
+}
+
+func (s *reportService) GetByAuthorID(authorID uint, page, limit int) ([]report.Report, int64, error) {
+	// No caching for filtered queries (matches blog/press release pattern)
+	return s.repo.GetByAuthorID(authorID, page, limit)
 }
 
 func (s *reportService) GetAllWithFilters(filters repository.ReportFilters) ([]report.Report, int64, error) {
@@ -250,6 +258,43 @@ func (s *reportService) Delete(id uint) error {
 	cache.DeletePattern("reports:total")
 	cache.DeletePattern(fmt.Sprintf("reports:category:*"))
 	cache.Delete(fmt.Sprintf("report:slug:%s", existing.Slug))
+
+	return nil
+}
+
+func (s *reportService) SoftDelete(id uint) error {
+	// Get the report to invalidate slug-based cache
+	existing, err := s.repo.GetByID(id)
+	if err != nil {
+		return err
+	}
+
+	// Soft delete the report
+	err = s.repo.SoftDelete(id)
+	if err != nil {
+		return err
+	}
+
+	// Invalidate caches (same pattern as hard delete)
+	cache.DeletePattern("reports:list:*")
+	cache.DeletePattern("reports:total")
+	cache.DeletePattern(fmt.Sprintf("reports:category:*"))
+	cache.Delete(fmt.Sprintf("report:slug:%s", existing.Slug))
+
+	return nil
+}
+
+func (s *reportService) Restore(id uint) error {
+	// Restore the report
+	err := s.repo.Restore(id)
+	if err != nil {
+		return err
+	}
+
+	// Invalidate caches to show restored report
+	cache.DeletePattern("reports:list:*")
+	cache.DeletePattern("reports:total")
+	cache.DeletePattern(fmt.Sprintf("reports:category:*"))
 
 	return nil
 }
