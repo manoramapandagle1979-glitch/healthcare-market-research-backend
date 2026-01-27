@@ -82,7 +82,7 @@ func (r *reportRepository) GetAll(page, limit int) ([]report.Report, int64, erro
 		FROM reports r
 		LEFT JOIN categories c ON r.category_id = c.id
 		WHERE r.deleted_at IS NULL
-		ORDER BY COALESCE(r.publish_date, r.updated_at) DESC
+		ORDER BY COALESCE(r.id) DESC
 		LIMIT ? OFFSET ?
 	`
 
@@ -211,7 +211,7 @@ func (r *reportRepository) GetAllWithFilters(filters ReportFilters) ([]report.Re
 		FROM reports r
 		LEFT JOIN categories c ON r.category_id = c.id
 		WHERE %s
-		ORDER BY COALESCE(r.publish_date, r.updated_at) DESC
+		ORDER BY COALESCE(r.id) DESC
 		LIMIT ? OFFSET ?
 	`, whereClause)
 
@@ -275,7 +275,7 @@ func (r *reportRepository) GetByCategorySlug(categorySlug string, page, limit in
 		FROM reports r
 		INNER JOIN categories c ON r.category_id = c.id
 		WHERE c.slug = ? AND c.is_active = true AND r.deleted_at IS NULL
-		ORDER BY COALESCE(r.publish_date, r.updated_at) DESC
+		ORDER BY COALESCE(r.id) DESC
 		LIMIT ? OFFSET ?
 	`
 
@@ -309,7 +309,7 @@ func (r *reportRepository) GetByAuthorID(authorID uint, page, limit int) ([]repo
 		FROM reports r
 		LEFT JOIN categories c ON r.category_id = c.id
 		WHERE r.author_ids::jsonb @> ?::jsonb AND r.deleted_at IS NULL
-		ORDER BY COALESCE(r.publish_date, r.updated_at) DESC
+		ORDER BY COALESCE(r.id) DESC
 		LIMIT ? OFFSET ?
 	`
 	err := r.db.Raw(querySQL, authorIDStr, limit, offset).Scan(&reports).Error
@@ -339,7 +339,7 @@ func (r *reportRepository) Search(query string, page, limit int) ([]report.Repor
 		FROM reports r
 		LEFT JOIN categories c ON r.category_id = c.id
 		WHERE (r.title ILIKE ? OR r.description ILIKE ? OR r.summary ILIKE ?) AND r.deleted_at IS NULL
-		ORDER BY COALESCE(r.publish_date, r.updated_at) DESC
+		ORDER BY COALESCE(r.id) DESC
 		LIMIT ? OFFSET ?
 	`
 
