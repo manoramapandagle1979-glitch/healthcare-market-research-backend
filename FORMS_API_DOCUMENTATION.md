@@ -44,6 +44,7 @@ Submit a new contact form or request sample form.
     "email": "john@example.com",
     "company": "HealthTech Inc",
     "phone": "+1234567890",
+    "country": "United States",
     "subject": "Custom Research Request",
     "message": "I need information about telemedicine market..."
   },
@@ -69,20 +70,22 @@ Submit a new contact form or request sample form.
 - `contact` - Contact form submission
 - `request-sample` - Sample request form submission
 
-**Contact Form Fields** (all required except phone):
+**Contact Form Fields** (all required except phone and country):
 - `fullName` (string, required)
 - `email` (string, required)
 - `company` (string, required)
 - `phone` (string, optional)
+- `country` (string, optional)
 - `subject` (string, required)
 - `message` (string, required)
 
-**Request Sample Form Fields** (all required except phone and additionalInfo):
+**Request Sample Form Fields** (all required except phone, country, and additionalInfo):
 - `fullName` (string, required)
 - `email` (string, required)
 - `company` (string, required)
 - `jobTitle` (string, required)
 - `phone` (string, optional)
+- `country` (string, optional)
 - `reportTitle` (string, required)
 - `additionalInfo` (string, optional)
 
@@ -124,6 +127,7 @@ GET /api/v1/forms/submissions?category=contact&status=pending&page=1&limit=20
         "email": "john@example.com",
         "company": "HealthTech Inc",
         "phone": "+1234567890",
+        "country": "United States",
         "subject": "Custom Research Request",
         "message": "I need information about..."
       },
@@ -172,6 +176,7 @@ GET /api/v1/forms/submissions/sub_a1b2c3d4-e5f6-7890-abcd-ef1234567890
       "email": "john@example.com",
       "company": "HealthTech Inc",
       "phone": "+1234567890",
+      "country": "United States",
       "subject": "Custom Research Request",
       "message": "I need information about..."
     },
@@ -384,6 +389,7 @@ async function submitContactForm(formData) {
         email: formData.email,
         company: formData.company,
         phone: formData.phone,
+        country: formData.country,
         subject: formData.subject,
         message: formData.message,
       },
@@ -415,6 +421,7 @@ async function submitRequestSampleForm(formData) {
         company: formData.company,
         jobTitle: formData.jobTitle,
         phone: formData.phone,
+        country: formData.country,
         reportTitle: formData.reportTitle,
         additionalInfo: formData.additionalInfo,
       },
@@ -539,6 +546,7 @@ curl -X POST http://localhost:8081/api/v1/forms/submissions \
       "email": "john@example.com",
       "company": "HealthTech Inc",
       "phone": "+1234567890",
+      "country": "United States",
       "subject": "Custom Research Request",
       "message": "I need information about telemedicine market"
     }

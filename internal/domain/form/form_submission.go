@@ -30,6 +30,7 @@ type ContactFormData struct {
 	Email    string `json:"email"`
 	Company  string `json:"company"`
 	Phone    string `json:"phone,omitempty"`
+	Country  string `json:"country,omitempty"`
 	Subject  string `json:"subject"`
 	Message  string `json:"message"`
 }
@@ -41,6 +42,7 @@ type RequestSampleFormData struct {
 	Company        string `json:"company"`
 	JobTitle       string `json:"jobTitle"`
 	Phone          string `json:"phone,omitempty"`
+	Country        string `json:"country,omitempty"`
 	ReportTitle    string `json:"reportTitle"`
 	AdditionalInfo string `json:"additionalInfo,omitempty"`
 }
