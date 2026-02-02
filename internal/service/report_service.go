@@ -1,6 +1,7 @@
 package service
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"time"
@@ -23,6 +24,8 @@ type ReportService interface {
 	Delete(id uint) error
 	SoftDelete(id uint) error
 	Restore(id uint) error
+	SchedulePublish(id uint, publishDate time.Time) (*report.Report, error)
+	CancelScheduledPublish(id uint) (*report.Report, error)
 }
 
 type reportService struct {
@@ -40,34 +43,8 @@ func NewReportService(repo repository.ReportRepository, reportImageRepo reposito
 }
 
 func (s *reportService) GetAll(page, limit int) ([]report.Report, int64, error) {
-	cacheKey := fmt.Sprintf("reports:list:%d:%d", page, limit)
-	totalKey := "reports:total"
-
-	type result struct {
-		Reports []report.Report `json:"reports"`
-		Total   int64           `json:"total"`
-	}
-
-	var res result
-
-	// Use singleflight-protected cache-aside pattern
-	err := cache.GetOrSet(cacheKey, &res, 10*time.Minute, func() (interface{}, error) {
-		reports, total, err := s.repo.GetAll(page, limit)
-		if err != nil {
-			return nil, err
-		}
-
-		// Also cache total separately
-		cache.Set(totalKey, total, 10*time.Minute)
-
-		return result{Reports: reports, Total: total}, nil
-	})
-
-	if err != nil {
-		return nil, 0, err
-	}
-
-	return res.Reports, res.Total, nil
+	// Always fetch fresh data from database (no caching)
+	return s.repo.GetAll(page, limit)
 }
 
 func (s *reportService) GetByID(id uint) (*report.ReportWithRelations, error) {
@@ -76,51 +53,13 @@ func (s *reportService) GetByID(id uint) (*report.ReportWithRelations, error) {
 }
 
 func (s *reportService) GetBySlug(slug string) (*report.ReportWithRelations, error) {
-	cacheKey := fmt.Sprintf("report:slug:%s", slug)
-
-	var rep report.ReportWithRelations
-
-	// Use singleflight-protected cache-aside pattern
-	err := cache.GetOrSet(cacheKey, &rep, 30*time.Minute, func() (interface{}, error) {
-		return s.repo.GetBySlug(slug)
-	})
-
-	if err != nil {
-		return nil, err
-	}
-
-	return &rep, nil
+	// Always fetch fresh data from database (no caching)
+	return s.repo.GetBySlug(slug)
 }
 
 func (s *reportService) GetByCategorySlug(categorySlug string, page, limit int) ([]report.Report, int64, error) {
-	cacheKey := fmt.Sprintf("reports:category:%s:%d:%d", categorySlug, page, limit)
-	totalKey := fmt.Sprintf("reports:category:%s:total", categorySlug)
-
-	type result struct {
-		Reports []report.Report `json:"reports"`
-		Total   int64           `json:"total"`
-	}
-
-	var res result
-
-	// Use singleflight-protected cache-aside pattern
-	err := cache.GetOrSet(cacheKey, &res, 10*time.Minute, func() (interface{}, error) {
-		reports, total, err := s.repo.GetByCategorySlug(categorySlug, page, limit)
-		if err != nil {
-			return nil, err
-		}
-
-		// Also cache total separately
-		cache.Set(totalKey, total, 10*time.Minute)
-
-		return result{Reports: reports, Total: total}, nil
-	})
-
-	if err != nil {
-		return nil, 0, err
-	}
-
-	return res.Reports, res.Total, nil
+	// Always fetch fresh data from database (no caching)
+	return s.repo.GetByCategorySlug(categorySlug, page, limit)
 }
 
 func (s *reportService) GetByAuthorID(authorID uint, page, limit int) ([]report.Report, int64, error) {
@@ -297,4 +236,44 @@ func (s *reportService) Restore(id uint) error {
 	cache.DeletePattern(fmt.Sprintf("reports:category:*"))
 
 	return nil
+}
+
+func (s *reportService) SchedulePublish(id uint, publishDate time.Time) (*report.Report, error) {
+	// Validate publishDate is in future
+	if publishDate.Before(time.Now()) {
+		return nil, errors.New("publish date must be in the future")
+	}
+
+	// Get existing report
+	r, err := s.repo.GetByID(id)
+	if err != nil {
+		return nil, err
+	}
+
+	// Validate status (can't schedule already published)
+	if r.Status == "published" {
+		return nil, errors.New("cannot schedule already published report")
+	}
+
+	// Schedule publish
+	if err := s.repo.SchedulePublish(id, publishDate); err != nil {
+		return nil, err
+	}
+
+	return s.repo.GetByID(id)
+}
+
+func (s *reportService) CancelScheduledPublish(id uint) (*report.Report, error) {
+	// Get existing report
+	_, err := s.repo.GetByID(id)
+	if err != nil {
+		return nil, err
+	}
+
+	// Cancel schedule
+	if err := s.repo.CancelScheduledPublish(id); err != nil {
+		return nil, err
+	}
+
+	return s.repo.GetByID(id)
 }

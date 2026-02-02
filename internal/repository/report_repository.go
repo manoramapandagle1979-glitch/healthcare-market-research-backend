@@ -51,6 +51,10 @@ type ReportRepository interface {
 	CreateVersion(version *report.ReportVersion) error
 	GetVersionsByReportID(reportID uint) ([]report.ReportVersion, error)
 	GetLatestVersionNumber(reportID uint) (int, error)
+	// Scheduled publishing methods
+	PublishScheduled(now time.Time) error
+	SchedulePublish(id uint, publishDate time.Time) error
+	CancelScheduledPublish(id uint) error
 }
 
 type reportRepository struct {
@@ -448,4 +452,29 @@ func (r *reportRepository) SoftDelete(id uint) error {
 
 func (r *reportRepository) Restore(id uint) error {
 	return r.db.Model(&report.Report{}).Where("id = ?", id).Update("deleted_at", nil).Error
+}
+
+func (r *reportRepository) PublishScheduled(now time.Time) error {
+	return r.db.Model(&report.Report{}).
+		Where("scheduled_publish_enabled = ? AND status != ? AND publish_date <= ?",
+			true, "published", now).
+		Updates(map[string]interface{}{
+			"status":                    "published",
+			"scheduled_publish_enabled": false,
+		}).Error
+}
+
+func (r *reportRepository) SchedulePublish(id uint, publishDate time.Time) error {
+	return r.db.Model(&report.Report{}).
+		Where("id = ?", id).
+		Updates(map[string]interface{}{
+			"publish_date":              publishDate,
+			"scheduled_publish_enabled": true,
+		}).Error
+}
+
+func (r *reportRepository) CancelScheduledPublish(id uint) error {
+	return r.db.Model(&report.Report{}).
+		Where("id = ?", id).
+		Update("scheduled_publish_enabled", false).Error
 }

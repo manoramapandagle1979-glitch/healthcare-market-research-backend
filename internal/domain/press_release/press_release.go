@@ -55,12 +55,14 @@ type PressRelease struct {
 	AuthorID    uint                   `json:"authorId" gorm:"not null;index"`
 	Author      *author.Author         `json:"author,omitempty" gorm:"foreignKey:AuthorID"`
 	Category    *category.Category     `json:"category,omitempty" gorm:"foreignKey:CategoryID"`
-	Status      PressReleaseStatus     `json:"status" gorm:"type:varchar(20);default:'draft';index"`
-	PublishDate *time.Time             `json:"publishDate,omitempty" gorm:"index"`
-	Location    string                 `json:"location,omitempty" gorm:"type:varchar(255)"`
+	Status                  PressReleaseStatus `json:"status" gorm:"type:varchar(20);default:'draft';index"`
+	PublishDate             *time.Time         `json:"publishDate,omitempty" gorm:"index"`
+	ScheduledPublishEnabled bool               `json:"scheduledPublishEnabled" gorm:"default:false"`
+	Location                string             `json:"location,omitempty" gorm:"type:varchar(255)"`
 	Metadata    PressReleaseMetadata   `json:"metadata" gorm:"type:jsonb"`
 	ReviewedBy  *uint                  `json:"reviewedBy,omitempty" gorm:"index"`
 	ReviewedAt  *time.Time             `json:"reviewedAt,omitempty"`
+	DeletedAt   *time.Time             `json:"deletedAt,omitempty" gorm:"index"`
 	CreatedAt   time.Time              `json:"createdAt"`
 	UpdatedAt   time.Time              `json:"updatedAt"`
 }
@@ -106,6 +108,7 @@ type GetPressReleasesQuery struct {
 	AuthorID   string
 	Location   string
 	Search     string
+	Deleted    string
 	Page       int
 	Limit      int
 }

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"os"
@@ -123,6 +124,7 @@ func main() {
 	reportImageRepo := repository.NewReportImageRepository(db.DB)
 	blogRepo := repository.NewBlogRepository(db.DB)
 	pressReleaseRepo := repository.NewPressReleaseRepository(db.DB)
+	dashboardRepo := repository.NewDashboardRepository(db.DB)
 
 	// Initialize services
 	userService := service.NewUserService(userRepo)
@@ -136,6 +138,19 @@ func main() {
 	reportImageService := service.NewReportImageService(reportImageRepo, reportRepo, cloudflareService)
 	blogService := service.NewBlogService(blogRepo)
 	pressReleaseService := service.NewPressReleaseService(pressReleaseRepo)
+	dashboardService := service.NewDashboardService(
+		dashboardRepo, reportRepo, blogRepo, pressReleaseRepo,
+		userRepo, formRepo, auditRepo,
+	)
+
+	// Initialize scheduler service
+	schedulerService := service.NewSchedulerService(reportRepo, blogRepo, pressReleaseRepo)
+
+	// Start scheduler with context
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	schedulerService.Start(ctx)
+	defer schedulerService.Stop()
 
 	// Initialize handlers
 	healthHandler := handler.NewHealthHandler()
@@ -150,6 +165,7 @@ func main() {
 	reportImageHandler := handler.NewReportImageHandler(reportImageService)
 	blogHandler := handler.NewBlogHandler(blogService)
 	pressReleaseHandler := handler.NewPressReleaseHandler(pressReleaseService)
+	dashboardHandler := handler.NewDashboardHandler(dashboardService)
 
 	// Initialize Fiber app
 	app := fiber.New(fiber.Config{
@@ -209,6 +225,8 @@ func main() {
 	v1.Patch("/reports/:id/soft-delete", middleware.RequireAuth(authService), middleware.RequireRole("admin", "editor"), reportHandler.SoftDelete)
 	v1.Patch("/reports/:id/restore", middleware.RequireAuth(authService), middleware.RequireRole("admin"), reportHandler.Restore)
 	v1.Delete("/reports/:id", middleware.RequireAuth(authService), middleware.RequireRole("admin"), reportHandler.Delete)
+	v1.Patch("/reports/:id/schedule", middleware.RequireAuth(authService), middleware.RequireRole("admin", "editor"), reportHandler.SchedulePublish)
+	v1.Patch("/reports/:id/cancel-schedule", middleware.RequireAuth(authService), middleware.RequireRole("admin", "editor"), reportHandler.CancelScheduledPublish)
 
 	// Report image routes (admin/editor only)
 	v1.Post("/reports/:reportId/images", middleware.RequireAuth(authService), middleware.RequireRole("admin", "editor"), reportImageHandler.UploadImage)
@@ -268,6 +286,10 @@ func main() {
 	v1.Patch("/blogs/:id/submit-review", middleware.RequireAuth(authService), middleware.RequireRole("admin", "editor"), blogHandler.SubmitForReview)
 	v1.Patch("/blogs/:id/publish", middleware.RequireAuth(authService), middleware.RequireRole("admin", "editor"), blogHandler.Publish)
 	v1.Patch("/blogs/:id/unpublish", middleware.RequireAuth(authService), middleware.RequireRole("admin", "editor"), blogHandler.Unpublish)
+	v1.Patch("/blogs/:id/soft-delete", middleware.RequireAuth(authService), middleware.RequireRole("admin", "editor"), blogHandler.SoftDelete)
+	v1.Patch("/blogs/:id/restore", middleware.RequireAuth(authService), middleware.RequireRole("admin"), blogHandler.Restore)
+	v1.Patch("/blogs/:id/schedule", middleware.RequireAuth(authService), middleware.RequireRole("admin", "editor"), blogHandler.SchedulePublish)
+	v1.Patch("/blogs/:id/cancel-schedule", middleware.RequireAuth(authService), middleware.RequireRole("admin", "editor"), blogHandler.CancelScheduledPublish)
 
 	// Press Release routes
 	v1.Get("/press-releases", pressReleaseHandler.GetAll)
@@ -279,6 +301,15 @@ func main() {
 	v1.Patch("/press-releases/:id/submit-review", middleware.RequireAuth(authService), middleware.RequireRole("admin", "editor"), pressReleaseHandler.SubmitForReview)
 	v1.Patch("/press-releases/:id/publish", middleware.RequireAuth(authService), middleware.RequireRole("admin", "editor"), pressReleaseHandler.Publish)
 	v1.Patch("/press-releases/:id/unpublish", middleware.RequireAuth(authService), middleware.RequireRole("admin", "editor"), pressReleaseHandler.Unpublish)
+	v1.Patch("/press-releases/:id/soft-delete", middleware.RequireAuth(authService), middleware.RequireRole("admin", "editor"), pressReleaseHandler.SoftDelete)
+	v1.Patch("/press-releases/:id/restore", middleware.RequireAuth(authService), middleware.RequireRole("admin"), pressReleaseHandler.Restore)
+	v1.Patch("/press-releases/:id/schedule", middleware.RequireAuth(authService), middleware.RequireRole("admin", "editor"), pressReleaseHandler.SchedulePublish)
+	v1.Patch("/press-releases/:id/cancel-schedule", middleware.RequireAuth(authService), middleware.RequireRole("admin", "editor"), pressReleaseHandler.CancelScheduledPublish)
+
+	// Dashboard routes (requires authentication)
+	dashboard := v1.Group("/dashboard", middleware.RequireAuth(authService))
+	dashboard.Get("/stats", dashboardHandler.GetStats)
+	dashboard.Get("/activity", dashboardHandler.GetActivity)
 
 	// Graceful shutdown
 	c := make(chan os.Signal, 1)

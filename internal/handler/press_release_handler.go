@@ -3,6 +3,7 @@ package handler
 import (
 	"math"
 	"strconv"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/healthcare-market-research/backend/internal/domain/press_release"
@@ -78,6 +79,7 @@ func (h *PressReleaseHandler) GetAll(c *fiber.Ctx) error {
 		AuthorID:   c.Query("authorId", ""),
 		Location:   c.Query("location", ""),
 		Search:     c.Query("search", ""),
+		Deleted:    c.Query("deleted", ""),
 		Page:       page,
 		Limit:      limit,
 	}
@@ -324,6 +326,133 @@ func (h *PressReleaseHandler) Unpublish(c *fiber.Ctx) error {
 		if err.Error() == "record not found" {
 			return response.NotFound(c, "Press release not found")
 		}
+		return response.BadRequest(c, err.Error())
+	}
+
+	return c.JSON(press_release.PressReleaseResponse{PressRelease: *pr})
+}
+
+// SoftDelete godoc
+// @Summary Soft delete press release
+// @Description Soft delete a press release by ID (moves to trash)
+// @Tags PressReleases
+// @Accept json
+// @Produce json
+// @Param id path int true "Press release ID"
+// @Success 200 {object} response.Response "Press release moved to trash successfully"
+// @Failure 400 {object} response.Response{error=string} "Bad request - invalid ID"
+// @Failure 404 {object} response.Response{error=string} "Press release not found"
+// @Failure 500 {object} response.Response{error=string} "Internal server error"
+// @Router /api/v1/press-releases/{id}/soft-delete [patch]
+func (h *PressReleaseHandler) SoftDelete(c *fiber.Ctx) error {
+	idStr := c.Params("id")
+	if idStr == "" {
+		return response.BadRequest(c, "Press release ID is required")
+	}
+
+	id, err := strconv.ParseUint(idStr, 10, 64)
+	if err != nil {
+		return response.BadRequest(c, "Invalid press release ID format")
+	}
+
+	if err := h.service.SoftDelete(uint(id)); err != nil {
+		if err.Error() == "record not found" {
+			return response.NotFound(c, "Press release not found")
+		}
+		return response.InternalError(c, "Failed to soft delete press release")
+	}
+
+	return response.Success(c, "Press release moved to trash successfully")
+}
+
+// Restore godoc
+// @Summary Restore press release
+// @Description Restore a soft deleted press release by ID
+// @Tags PressReleases
+// @Accept json
+// @Produce json
+// @Param id path int true "Press release ID"
+// @Success 200 {object} response.Response "Press release restored successfully"
+// @Failure 400 {object} response.Response{error=string} "Bad request - invalid ID"
+// @Failure 404 {object} response.Response{error=string} "Press release not found"
+// @Failure 500 {object} response.Response{error=string} "Internal server error"
+// @Router /api/v1/press-releases/{id}/restore [patch]
+func (h *PressReleaseHandler) Restore(c *fiber.Ctx) error {
+	idStr := c.Params("id")
+	if idStr == "" {
+		return response.BadRequest(c, "Press release ID is required")
+	}
+
+	id, err := strconv.ParseUint(idStr, 10, 64)
+	if err != nil {
+		return response.BadRequest(c, "Invalid press release ID format")
+	}
+
+	if err := h.service.Restore(uint(id)); err != nil {
+		return response.InternalError(c, "Failed to restore press release")
+	}
+
+	return response.Success(c, "Press release restored successfully")
+}
+
+// SchedulePublish godoc
+// @Summary Schedule press release publish
+// @Description Schedule a press release to be published at a future date/time
+// @Tags Press Releases
+// @Accept json
+// @Produce json
+// @Param id path int true "Press Release ID"
+// @Param request body object true "Publish date"
+// @Success 200 {object} press_release.PressReleaseResponse "Press release scheduled successfully"
+// @Failure 400 {object} response.Response{error=string} "Bad request"
+// @Failure 404 {object} response.Response{error=string} "Press release not found"
+// @Router /api/v1/press-releases/{id}/schedule [patch]
+func (h *PressReleaseHandler) SchedulePublish(c *fiber.Ctx) error {
+	idStr := c.Params("id")
+	id, err := strconv.ParseUint(idStr, 10, 64)
+	if err != nil {
+		return response.BadRequest(c, "Invalid press release ID format")
+	}
+
+	var req struct {
+		PublishDate string `json:"publishDate"`
+	}
+	if err := c.BodyParser(&req); err != nil {
+		return response.BadRequest(c, "Invalid request body")
+	}
+
+	publishDate, err := time.Parse(time.RFC3339, req.PublishDate)
+	if err != nil {
+		return response.BadRequest(c, "Invalid date format (use ISO 8601)")
+	}
+
+	pr, err := h.service.SchedulePublish(uint(id), publishDate)
+	if err != nil {
+		return response.BadRequest(c, err.Error())
+	}
+
+	return c.JSON(press_release.PressReleaseResponse{PressRelease: *pr})
+}
+
+// CancelScheduledPublish godoc
+// @Summary Cancel scheduled publish
+// @Description Cancel scheduled publishing for a press release
+// @Tags Press Releases
+// @Accept json
+// @Produce json
+// @Param id path int true "Press Release ID"
+// @Success 200 {object} press_release.PressReleaseResponse "Schedule cancelled"
+// @Failure 400 {object} response.Response{error=string} "Bad request"
+// @Router /api/v1/press-releases/{id}/cancel-schedule [patch]
+func (h *PressReleaseHandler) CancelScheduledPublish(c *fiber.Ctx) error {
+	idStr := c.Params("id")
+	id, err := strconv.ParseUint(idStr, 10, 64)
+	if err != nil {
+		return response.BadRequest(c, "Invalid press release ID format")
+	}
+
+	pr, err := h.service.CancelScheduledPublish(uint(id))
+	if err != nil {
 		return response.BadRequest(c, err.Error())
 	}
 

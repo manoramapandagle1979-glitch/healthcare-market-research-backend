@@ -172,11 +172,12 @@ type Report struct {
 	Geography       StringSlice     `json:"geography" gorm:"type:jsonb;not null"`
 
 	// Status and access
-	Status          string          `json:"status" gorm:"type:varchar(20);default:'draft';index"`
-	IsFeatured      bool            `json:"is_featured" gorm:"default:false"`
+	Status                  string     `json:"status" gorm:"type:varchar(20);default:'draft';index"`
+	IsFeatured              bool       `json:"is_featured" gorm:"default:false"`
 
 	// Publishing
-	PublishDate     *time.Time      `json:"publish_date" gorm:"index"`
+	PublishDate             *time.Time `json:"publish_date" gorm:"index"`
+	ScheduledPublishEnabled bool       `json:"scheduled_publish_enabled" gorm:"default:false"`
 
 	// Statistics
 	ViewCount       int             `json:"view_count" gorm:"default:0"`

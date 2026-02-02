@@ -1,6 +1,7 @@
 package service
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -17,9 +18,13 @@ type PressReleaseService interface {
 	GetBySlug(slug string) (*press_release.PressRelease, error)
 	Update(id uint, req *press_release.UpdatePressReleaseRequest) (*press_release.PressRelease, error)
 	Delete(id uint) error
+	SoftDelete(id uint) error
+	Restore(id uint) error
 	SubmitForReview(id uint) (*press_release.PressRelease, error)
 	Publish(id uint) (*press_release.PressRelease, error)
 	Unpublish(id uint) (*press_release.PressRelease, error)
+	SchedulePublish(id uint, publishDate time.Time) (*press_release.PressRelease, error)
+	CancelScheduledPublish(id uint) (*press_release.PressRelease, error)
 }
 
 type pressReleaseService struct {
@@ -303,5 +308,82 @@ func (s *pressReleaseService) Unpublish(id uint) (*press_release.PressRelease, e
 	cache.Delete(fmt.Sprintf("press_release:id:%d", id))
 
 	// Fetch and return updated press release
+	return s.repo.GetByID(id)
+}
+
+func (s *pressReleaseService) SoftDelete(id uint) error {
+	// Check if press release exists
+	_, err := s.repo.GetByID(id)
+	if err != nil {
+		return err
+	}
+
+	if err := s.repo.SoftDelete(id); err != nil {
+		return err
+	}
+
+	// Invalidate caches
+	cache.DeletePattern("press_releases:*")
+	cache.Delete(fmt.Sprintf("press_release:id:%d", id))
+
+	return nil
+}
+
+func (s *pressReleaseService) Restore(id uint) error {
+	if err := s.repo.Restore(id); err != nil {
+		return err
+	}
+
+	// Invalidate caches
+	cache.DeletePattern("press_releases:*")
+
+	return nil
+}
+
+func (s *pressReleaseService) SchedulePublish(id uint, publishDate time.Time) (*press_release.PressRelease, error) {
+	// Validate publishDate is in future
+	if publishDate.Before(time.Now()) {
+		return nil, errors.New("publish date must be in the future")
+	}
+
+	// Get existing press release
+	pr, err := s.repo.GetByID(id)
+	if err != nil {
+		return nil, err
+	}
+
+	// Validate status (can't schedule already published)
+	if pr.Status == press_release.StatusPublished {
+		return nil, errors.New("cannot schedule already published press release")
+	}
+
+	// Schedule publish
+	if err := s.repo.SchedulePublish(id, publishDate); err != nil {
+		return nil, err
+	}
+
+	// Invalidate caches
+	cache.DeletePattern("press_releases:*")
+	cache.Delete(fmt.Sprintf("press_release:id:%d", id))
+
+	return s.repo.GetByID(id)
+}
+
+func (s *pressReleaseService) CancelScheduledPublish(id uint) (*press_release.PressRelease, error) {
+	// Get existing press release
+	_, err := s.repo.GetByID(id)
+	if err != nil {
+		return nil, err
+	}
+
+	// Cancel schedule
+	if err := s.repo.CancelScheduledPublish(id); err != nil {
+		return nil, err
+	}
+
+	// Invalidate caches
+	cache.DeletePattern("press_releases:*")
+	cache.Delete(fmt.Sprintf("press_release:id:%d", id))
+
 	return s.repo.GetByID(id)
 }

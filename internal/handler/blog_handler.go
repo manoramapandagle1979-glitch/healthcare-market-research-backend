@@ -3,6 +3,7 @@ package handler
 import (
 	"math"
 	"strconv"
+	"time"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/healthcare-market-research/backend/internal/domain/blog"
@@ -78,6 +79,7 @@ func (h *BlogHandler) GetAll(c *fiber.Ctx) error {
 		AuthorID:   c.Query("authorId", ""),
 		Location:   c.Query("location", ""),
 		Search:     c.Query("search", ""),
+		Deleted:    c.Query("deleted", ""),
 		Page:       page,
 		Limit:      limit,
 	}
@@ -324,6 +326,133 @@ func (h *BlogHandler) Unpublish(c *fiber.Ctx) error {
 		if err.Error() == "record not found" {
 			return response.NotFound(c, "Blog not found")
 		}
+		return response.BadRequest(c, err.Error())
+	}
+
+	return c.JSON(blog.BlogResponse{Blog: *b})
+}
+
+// SoftDelete godoc
+// @Summary Soft delete blog
+// @Description Soft delete a blog post by ID (moves to trash)
+// @Tags Blogs
+// @Accept json
+// @Produce json
+// @Param id path int true "Blog ID"
+// @Success 200 {object} response.Response "Blog moved to trash successfully"
+// @Failure 400 {object} response.Response{error=string} "Bad request - invalid ID"
+// @Failure 404 {object} response.Response{error=string} "Blog not found"
+// @Failure 500 {object} response.Response{error=string} "Internal server error"
+// @Router /api/v1/blogs/{id}/soft-delete [patch]
+func (h *BlogHandler) SoftDelete(c *fiber.Ctx) error {
+	idStr := c.Params("id")
+	if idStr == "" {
+		return response.BadRequest(c, "Blog ID is required")
+	}
+
+	id, err := strconv.ParseUint(idStr, 10, 64)
+	if err != nil {
+		return response.BadRequest(c, "Invalid blog ID format")
+	}
+
+	if err := h.service.SoftDelete(uint(id)); err != nil {
+		if err.Error() == "record not found" {
+			return response.NotFound(c, "Blog not found")
+		}
+		return response.InternalError(c, "Failed to soft delete blog")
+	}
+
+	return response.Success(c, "Blog moved to trash successfully")
+}
+
+// Restore godoc
+// @Summary Restore blog
+// @Description Restore a soft deleted blog post by ID
+// @Tags Blogs
+// @Accept json
+// @Produce json
+// @Param id path int true "Blog ID"
+// @Success 200 {object} response.Response "Blog restored successfully"
+// @Failure 400 {object} response.Response{error=string} "Bad request - invalid ID"
+// @Failure 404 {object} response.Response{error=string} "Blog not found"
+// @Failure 500 {object} response.Response{error=string} "Internal server error"
+// @Router /api/v1/blogs/{id}/restore [patch]
+func (h *BlogHandler) Restore(c *fiber.Ctx) error {
+	idStr := c.Params("id")
+	if idStr == "" {
+		return response.BadRequest(c, "Blog ID is required")
+	}
+
+	id, err := strconv.ParseUint(idStr, 10, 64)
+	if err != nil {
+		return response.BadRequest(c, "Invalid blog ID format")
+	}
+
+	if err := h.service.Restore(uint(id)); err != nil {
+		return response.InternalError(c, "Failed to restore blog")
+	}
+
+	return response.Success(c, "Blog restored successfully")
+}
+
+// SchedulePublish godoc
+// @Summary Schedule blog publish
+// @Description Schedule a blog to be published at a future date/time
+// @Tags Blogs
+// @Accept json
+// @Produce json
+// @Param id path int true "Blog ID"
+// @Param request body object true "Publish date"
+// @Success 200 {object} blog.BlogResponse "Blog scheduled successfully"
+// @Failure 400 {object} response.Response{error=string} "Bad request"
+// @Failure 404 {object} response.Response{error=string} "Blog not found"
+// @Router /api/v1/blogs/{id}/schedule [patch]
+func (h *BlogHandler) SchedulePublish(c *fiber.Ctx) error {
+	idStr := c.Params("id")
+	id, err := strconv.ParseUint(idStr, 10, 64)
+	if err != nil {
+		return response.BadRequest(c, "Invalid blog ID format")
+	}
+
+	var req struct {
+		PublishDate string `json:"publishDate"`
+	}
+	if err := c.BodyParser(&req); err != nil {
+		return response.BadRequest(c, "Invalid request body")
+	}
+
+	publishDate, err := time.Parse(time.RFC3339, req.PublishDate)
+	if err != nil {
+		return response.BadRequest(c, "Invalid date format (use ISO 8601)")
+	}
+
+	b, err := h.service.SchedulePublish(uint(id), publishDate)
+	if err != nil {
+		return response.BadRequest(c, err.Error())
+	}
+
+	return c.JSON(blog.BlogResponse{Blog: *b})
+}
+
+// CancelScheduledPublish godoc
+// @Summary Cancel scheduled publish
+// @Description Cancel scheduled publishing for a blog
+// @Tags Blogs
+// @Accept json
+// @Produce json
+// @Param id path int true "Blog ID"
+// @Success 200 {object} blog.BlogResponse "Schedule cancelled"
+// @Failure 400 {object} response.Response{error=string} "Bad request"
+// @Router /api/v1/blogs/{id}/cancel-schedule [patch]
+func (h *BlogHandler) CancelScheduledPublish(c *fiber.Ctx) error {
+	idStr := c.Params("id")
+	id, err := strconv.ParseUint(idStr, 10, 64)
+	if err != nil {
+		return response.BadRequest(c, "Invalid blog ID format")
+	}
+
+	b, err := h.service.CancelScheduledPublish(uint(id))
+	if err != nil {
 		return response.BadRequest(c, err.Error())
 	}
 

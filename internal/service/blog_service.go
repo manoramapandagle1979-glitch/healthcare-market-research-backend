@@ -1,6 +1,7 @@
 package service
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -17,9 +18,13 @@ type BlogService interface {
 	GetBySlug(slug string) (*blog.Blog, error)
 	Update(id uint, req *blog.UpdateBlogRequest) (*blog.Blog, error)
 	Delete(id uint) error
+	SoftDelete(id uint) error
+	Restore(id uint) error
 	SubmitForReview(id uint) (*blog.Blog, error)
 	Publish(id uint) (*blog.Blog, error)
 	Unpublish(id uint) (*blog.Blog, error)
+	SchedulePublish(id uint, publishDate time.Time) (*blog.Blog, error)
+	CancelScheduledPublish(id uint) (*blog.Blog, error)
 }
 
 type blogService struct {
@@ -303,5 +308,82 @@ func (s *blogService) Unpublish(id uint) (*blog.Blog, error) {
 	cache.Delete(fmt.Sprintf("blog:id:%d", id))
 
 	// Fetch and return updated blog
+	return s.repo.GetByID(id)
+}
+
+func (s *blogService) SoftDelete(id uint) error {
+	// Check if blog exists
+	_, err := s.repo.GetByID(id)
+	if err != nil {
+		return err
+	}
+
+	if err := s.repo.SoftDelete(id); err != nil {
+		return err
+	}
+
+	// Invalidate caches
+	cache.DeletePattern("blogs:*")
+	cache.Delete(fmt.Sprintf("blog:id:%d", id))
+
+	return nil
+}
+
+func (s *blogService) Restore(id uint) error {
+	if err := s.repo.Restore(id); err != nil {
+		return err
+	}
+
+	// Invalidate caches
+	cache.DeletePattern("blogs:*")
+
+	return nil
+}
+
+func (s *blogService) SchedulePublish(id uint, publishDate time.Time) (*blog.Blog, error) {
+	// Validate publishDate is in future
+	if publishDate.Before(time.Now()) {
+		return nil, errors.New("publish date must be in the future")
+	}
+
+	// Get existing blog
+	b, err := s.repo.GetByID(id)
+	if err != nil {
+		return nil, err
+	}
+
+	// Validate status (can't schedule already published)
+	if b.Status == blog.StatusPublished {
+		return nil, errors.New("cannot schedule already published blog")
+	}
+
+	// Schedule publish
+	if err := s.repo.SchedulePublish(id, publishDate); err != nil {
+		return nil, err
+	}
+
+	// Invalidate caches
+	cache.DeletePattern("blogs:*")
+	cache.Delete(fmt.Sprintf("blog:id:%d", id))
+
+	return s.repo.GetByID(id)
+}
+
+func (s *blogService) CancelScheduledPublish(id uint) (*blog.Blog, error) {
+	// Get existing blog
+	_, err := s.repo.GetByID(id)
+	if err != nil {
+		return nil, err
+	}
+
+	// Cancel schedule
+	if err := s.repo.CancelScheduledPublish(id); err != nil {
+		return nil, err
+	}
+
+	// Invalidate caches
+	cache.DeletePattern("blogs:*")
+	cache.Delete(fmt.Sprintf("blog:id:%d", id))
+
 	return s.repo.GetByID(id)
 }

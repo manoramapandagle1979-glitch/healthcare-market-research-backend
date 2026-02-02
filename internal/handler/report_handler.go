@@ -638,3 +638,67 @@ func (h *ReportHandler) Restore(c *fiber.Ctx) error {
 		"message": "Report restored successfully",
 	})
 }
+
+// SchedulePublish godoc
+// @Summary Schedule report publish
+// @Description Schedule a report to be published at a future date/time
+// @Tags Reports
+// @Accept json
+// @Produce json
+// @Param id path int true "Report ID"
+// @Param request body object true "Publish date"
+// @Success 200 {object} object "Report scheduled successfully"
+// @Failure 400 {object} response.Response{error=string} "Bad request"
+// @Failure 404 {object} response.Response{error=string} "Report not found"
+// @Router /api/v1/reports/{id}/schedule [patch]
+func (h *ReportHandler) SchedulePublish(c *fiber.Ctx) error {
+	idStr := c.Params("id")
+	id, err := strconv.ParseUint(idStr, 10, 64)
+	if err != nil {
+		return response.BadRequest(c, "Invalid report ID format")
+	}
+
+	var req struct {
+		PublishDate string `json:"publishDate"`
+	}
+	if err := c.BodyParser(&req); err != nil {
+		return response.BadRequest(c, "Invalid request body")
+	}
+
+	publishDate, err := time.Parse(time.RFC3339, req.PublishDate)
+	if err != nil {
+		return response.BadRequest(c, "Invalid date format (use ISO 8601)")
+	}
+
+	r, err := h.service.SchedulePublish(uint(id), publishDate)
+	if err != nil {
+		return response.BadRequest(c, err.Error())
+	}
+
+	return c.JSON(fiber.Map{"report": r})
+}
+
+// CancelScheduledPublish godoc
+// @Summary Cancel scheduled publish
+// @Description Cancel scheduled publishing for a report
+// @Tags Reports
+// @Accept json
+// @Produce json
+// @Param id path int true "Report ID"
+// @Success 200 {object} object "Schedule cancelled"
+// @Failure 400 {object} response.Response{error=string} "Bad request"
+// @Router /api/v1/reports/{id}/cancel-schedule [patch]
+func (h *ReportHandler) CancelScheduledPublish(c *fiber.Ctx) error {
+	idStr := c.Params("id")
+	id, err := strconv.ParseUint(idStr, 10, 64)
+	if err != nil {
+		return response.BadRequest(c, "Invalid report ID format")
+	}
+
+	r, err := h.service.CancelScheduledPublish(uint(id))
+	if err != nil {
+		return response.BadRequest(c, err.Error())
+	}
+
+	return c.JSON(fiber.Map{"report": r})
+}

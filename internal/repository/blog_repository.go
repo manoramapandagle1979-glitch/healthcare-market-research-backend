@@ -2,6 +2,7 @@ package repository
 
 import (
 	"strings"
+	"time"
 
 	"github.com/healthcare-market-research/backend/internal/domain/blog"
 	"gorm.io/gorm"
@@ -14,9 +15,14 @@ type BlogRepository interface {
 	GetBySlug(slug string) (*blog.Blog, error)
 	Update(id uint, updates map[string]interface{}) error
 	Delete(id uint) error
+	SoftDelete(id uint) error
+	Restore(id uint) error
 	SubmitForReview(id uint) error
 	Publish(id uint) error
 	Unpublish(id uint) error
+	PublishScheduled(now time.Time) error
+	SchedulePublish(id uint, publishDate time.Time) error
+	CancelScheduledPublish(id uint) error
 }
 
 type blogRepository struct {
@@ -78,6 +84,13 @@ func (r *blogRepository) GetAll(query blog.GetBlogsQuery) ([]blog.Blog, int64, e
 		db = db.Where("title ILIKE ? OR excerpt ILIKE ? OR content ILIKE ?", searchPattern, searchPattern, searchPattern)
 	}
 
+	// Apply soft delete filter
+	if query.Deleted == "true" {
+		db = db.Where("deleted_at IS NOT NULL")
+	} else {
+		db = db.Where("deleted_at IS NULL")
+	}
+
 	// Count total before pagination
 	if err := db.Count(&total).Error; err != nil {
 		return nil, 0, err
@@ -97,7 +110,7 @@ func (r *blogRepository) GetAll(query blog.GetBlogsQuery) ([]blog.Blog, int64, e
 
 func (r *blogRepository) GetByID(id uint) (*blog.Blog, error) {
 	var b blog.Blog
-	if err := r.db.Preload("Author").Preload("Category").First(&b, id).Error; err != nil {
+	if err := r.db.Preload("Author").Preload("Category").Where("deleted_at IS NULL").First(&b, id).Error; err != nil {
 		return nil, err
 	}
 	return &b, nil
@@ -105,7 +118,7 @@ func (r *blogRepository) GetByID(id uint) (*blog.Blog, error) {
 
 func (r *blogRepository) GetBySlug(slug string) (*blog.Blog, error) {
 	var b blog.Blog
-	if err := r.db.Preload("Author").Preload("Category").Where("slug = ?", slug).First(&b).Error; err != nil {
+	if err := r.db.Preload("Author").Preload("Category").Where("slug = ? AND deleted_at IS NULL", slug).First(&b).Error; err != nil {
 		return nil, err
 	}
 	return &b, nil
@@ -129,4 +142,37 @@ func (r *blogRepository) Publish(id uint) error {
 
 func (r *blogRepository) Unpublish(id uint) error {
 	return r.db.Model(&blog.Blog{}).Where("id = ?", id).Update("status", blog.StatusDraft).Error
+}
+
+func (r *blogRepository) SoftDelete(id uint) error {
+	return r.db.Model(&blog.Blog{}).Where("id = ?", id).Update("deleted_at", gorm.Expr("NOW()")).Error
+}
+
+func (r *blogRepository) Restore(id uint) error {
+	return r.db.Model(&blog.Blog{}).Where("id = ?", id).Update("deleted_at", nil).Error
+}
+
+func (r *blogRepository) PublishScheduled(now time.Time) error {
+	return r.db.Model(&blog.Blog{}).
+		Where("scheduled_publish_enabled = ? AND status != ? AND publish_date <= ?",
+			true, blog.StatusPublished, now).
+		Updates(map[string]interface{}{
+			"status":                    blog.StatusPublished,
+			"scheduled_publish_enabled": false,
+		}).Error
+}
+
+func (r *blogRepository) SchedulePublish(id uint, publishDate time.Time) error {
+	return r.db.Model(&blog.Blog{}).
+		Where("id = ?", id).
+		Updates(map[string]interface{}{
+			"publish_date":              publishDate,
+			"scheduled_publish_enabled": true,
+		}).Error
+}
+
+func (r *blogRepository) CancelScheduledPublish(id uint) error {
+	return r.db.Model(&blog.Blog{}).
+		Where("id = ?", id).
+		Update("scheduled_publish_enabled", false).Error
 }

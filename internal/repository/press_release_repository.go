@@ -2,6 +2,7 @@ package repository
 
 import (
 	"strings"
+	"time"
 
 	"github.com/healthcare-market-research/backend/internal/domain/press_release"
 	"gorm.io/gorm"
@@ -14,9 +15,14 @@ type PressReleaseRepository interface {
 	GetBySlug(slug string) (*press_release.PressRelease, error)
 	Update(id uint, updates map[string]interface{}) error
 	Delete(id uint) error
+	SoftDelete(id uint) error
+	Restore(id uint) error
 	SubmitForReview(id uint) error
 	Publish(id uint) error
 	Unpublish(id uint) error
+	PublishScheduled(now time.Time) error
+	SchedulePublish(id uint, publishDate time.Time) error
+	CancelScheduledPublish(id uint) error
 }
 
 type pressReleaseRepository struct {
@@ -78,6 +84,13 @@ func (r *pressReleaseRepository) GetAll(query press_release.GetPressReleasesQuer
 		db = db.Where("title ILIKE ? OR excerpt ILIKE ? OR content ILIKE ?", searchPattern, searchPattern, searchPattern)
 	}
 
+	// Apply soft delete filter
+	if query.Deleted == "true" {
+		db = db.Where("deleted_at IS NOT NULL")
+	} else {
+		db = db.Where("deleted_at IS NULL")
+	}
+
 	// Count total before pagination
 	if err := db.Count(&total).Error; err != nil {
 		return nil, 0, err
@@ -97,7 +110,7 @@ func (r *pressReleaseRepository) GetAll(query press_release.GetPressReleasesQuer
 
 func (r *pressReleaseRepository) GetByID(id uint) (*press_release.PressRelease, error) {
 	var pr press_release.PressRelease
-	if err := r.db.Preload("Author").Preload("Category").First(&pr, id).Error; err != nil {
+	if err := r.db.Preload("Author").Preload("Category").Where("deleted_at IS NULL").First(&pr, id).Error; err != nil {
 		return nil, err
 	}
 	return &pr, nil
@@ -105,7 +118,7 @@ func (r *pressReleaseRepository) GetByID(id uint) (*press_release.PressRelease, 
 
 func (r *pressReleaseRepository) GetBySlug(slug string) (*press_release.PressRelease, error) {
 	var pr press_release.PressRelease
-	if err := r.db.Preload("Author").Preload("Category").Where("slug = ?", slug).First(&pr).Error; err != nil {
+	if err := r.db.Preload("Author").Preload("Category").Where("slug = ? AND deleted_at IS NULL", slug).First(&pr).Error; err != nil {
 		return nil, err
 	}
 	return &pr, nil
@@ -129,4 +142,37 @@ func (r *pressReleaseRepository) Publish(id uint) error {
 
 func (r *pressReleaseRepository) Unpublish(id uint) error {
 	return r.db.Model(&press_release.PressRelease{}).Where("id = ?", id).Update("status", press_release.StatusDraft).Error
+}
+
+func (r *pressReleaseRepository) SoftDelete(id uint) error {
+	return r.db.Model(&press_release.PressRelease{}).Where("id = ?", id).Update("deleted_at", gorm.Expr("NOW()")).Error
+}
+
+func (r *pressReleaseRepository) Restore(id uint) error {
+	return r.db.Model(&press_release.PressRelease{}).Where("id = ?", id).Update("deleted_at", nil).Error
+}
+
+func (r *pressReleaseRepository) PublishScheduled(now time.Time) error {
+	return r.db.Model(&press_release.PressRelease{}).
+		Where("scheduled_publish_enabled = ? AND status != ? AND publish_date <= ?",
+			true, press_release.StatusPublished, now).
+		Updates(map[string]interface{}{
+			"status":                    press_release.StatusPublished,
+			"scheduled_publish_enabled": false,
+		}).Error
+}
+
+func (r *pressReleaseRepository) SchedulePublish(id uint, publishDate time.Time) error {
+	return r.db.Model(&press_release.PressRelease{}).
+		Where("id = ?", id).
+		Updates(map[string]interface{}{
+			"publish_date":              publishDate,
+			"scheduled_publish_enabled": true,
+		}).Error
+}
+
+func (r *pressReleaseRepository) CancelScheduledPublish(id uint) error {
+	return r.db.Model(&press_release.PressRelease{}).
+		Where("id = ?", id).
+		Update("scheduled_publish_enabled", false).Error
 }
