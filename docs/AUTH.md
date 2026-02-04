@@ -314,35 +314,6 @@ REDIS_DB=0
 
 ---
 
-## CSRF Protection (Optional)
-
-CSRF middleware is available but optional for JWT-based authentication. Enable it if:
-- Storing tokens in cookies instead of Authorization headers
-- Defense-in-depth security requirements
-- Compliance requirements mandate CSRF protection
-
-### Using CSRF Protection
-
-Add the CSRF middleware to specific routes in `cmd/api/main.go`:
-
-```go
-import "github.com/healthcare-market-research/backend/internal/middleware"
-
-// Apply CSRF to state-changing operations
-v1.Post("/reports",
-    middleware.CSRF(),
-    middleware.RequireAuth(authService),
-    reportHandler.Create)
-```
-
-CSRF tokens are automatically:
-- Generated and stored in Redis
-- Set in both cookie and response header
-- Validated on POST/PUT/DELETE requests
-- Ignored on GET/HEAD/OPTIONS requests
-
----
-
 ## Error Handling
 
 ### Common Error Responses

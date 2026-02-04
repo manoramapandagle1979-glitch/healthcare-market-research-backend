@@ -315,14 +315,14 @@ func (r *dashboardRepository) GetLeadStats() (*dashboard.LeadStats, error) {
 	return stats, nil
 }
 
-// GetTopPerformingReports retrieves top performing reports by view count
+// GetTopPerformingReports retrieves top performing reports by most recent publish date
 func (r *dashboardRepository) GetTopPerformingReports(limit int) ([]dashboard.TopReport, error) {
 	var reports []dashboard.TopReport
 
 	err := r.db.Table("reports").
-		Select("id, title, slug, view_count, download_count").
+		Select("id, title, slug").
 		Where("status = ? AND deleted_at IS NULL", "published").
-		Order("view_count DESC").
+		Order("publish_date DESC").
 		Limit(limit).
 		Scan(&reports).Error
 

@@ -80,11 +80,9 @@ type PerformanceStats struct {
 
 // TopReport represents a top-performing report
 type TopReport struct {
-	ID            uint   `json:"id"`
-	Title         string `json:"title"`
-	Slug          string `json:"slug"`
-	ViewCount     int    `json:"viewCount"`
-	DownloadCount int    `json:"downloadCount"`
+	ID    uint   `json:"id"`
+	Title string `json:"title"`
+	Slug  string `json:"slug"`
 }
 
 // TopCategory represents a top-performing category

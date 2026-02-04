@@ -159,7 +159,6 @@ type Report struct {
 	Slug            string          `json:"slug" gorm:"type:varchar(500);uniqueIndex;not null"`
 	Description     string          `json:"description" gorm:"type:text"`
 	Summary         string          `json:"summary" gorm:"type:text;not null"`
-	ThumbnailURL    string          `json:"thumbnail_url" gorm:"type:varchar(500)"`
 
 	// Pricing
 	Price            float64        `json:"price" gorm:"type:decimal(10,2);default:0"`
@@ -178,10 +177,6 @@ type Report struct {
 	// Publishing
 	PublishDate             *time.Time `json:"publish_date" gorm:"index"`
 	ScheduledPublishEnabled bool       `json:"scheduled_publish_enabled" gorm:"default:false"`
-
-	// Statistics
-	ViewCount       int             `json:"view_count" gorm:"default:0"`
-	DownloadCount   int             `json:"download_count" gorm:"default:0"`
 
 	// Authors (JSON array of user IDs)
 	AuthorIDs       UintSlice       `json:"author_ids,omitempty" gorm:"type:jsonb"`
