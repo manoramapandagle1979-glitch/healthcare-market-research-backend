@@ -89,6 +89,7 @@ type CreateBlogRequest struct {
 // UpdateBlogRequest is the request body for updating a blog
 type UpdateBlogRequest struct {
 	Title       *string       `json:"title,omitempty" validate:"omitempty,min=10,max=200"`
+	Slug        *string       `json:"slug,omitempty" validate:"omitempty,min=1,max=250"`
 	Excerpt     *string       `json:"excerpt,omitempty" validate:"omitempty,min=50,max=500"`
 	Content     *string       `json:"content,omitempty" validate:"omitempty,min=100"`
 	CategoryID  *uint         `json:"categoryId,omitempty"`

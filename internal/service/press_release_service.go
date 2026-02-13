@@ -157,7 +157,11 @@ func (s *pressReleaseService) Update(id uint, req *press_release.UpdatePressRele
 
 	if req.Title != nil {
 		updates["title"] = *req.Title
-		// Update slug if title changed
+	}
+
+	if req.Slug != nil {
+		updates["slug"] = slug.Make(*req.Slug)
+	} else if req.Title != nil {
 		updates["slug"] = slug.Make(*req.Title)
 	}
 

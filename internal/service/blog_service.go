@@ -157,7 +157,11 @@ func (s *blogService) Update(id uint, req *blog.UpdateBlogRequest) (*blog.Blog, 
 
 	if req.Title != nil {
 		updates["title"] = *req.Title
-		// Update slug if title changed
+	}
+
+	if req.Slug != nil {
+		updates["slug"] = slug.Make(*req.Slug)
+	} else if req.Title != nil {
 		updates["slug"] = slug.Make(*req.Title)
 	}
 
