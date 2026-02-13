@@ -47,9 +47,11 @@ type RateLimitConfig struct {
 }
 
 type CloudflareConfig struct {
-	AccountID   string
-	APIToken    string
-	DeliveryURL string
+	R2AccessKeyID     string
+	R2SecretAccessKey string
+	R2Endpoint        string
+	R2Bucket          string
+	R2PublicURL       string
 }
 
 func Load() *Config {
@@ -98,9 +100,11 @@ func Load() *Config {
 			LoginWindow:      rateLimitWindow,
 		},
 		Cloudflare: CloudflareConfig{
-			AccountID:   getEnv("CLOUDFLARE_ACCOUNT_ID", ""),
-			APIToken:    getEnv("CLOUDFLARE_IMAGES_API_TOKEN", ""),
-			DeliveryURL: getEnv("CLOUDFLARE_DELIVERY_URL", ""),
+			R2AccessKeyID:     getEnv("R2_ACCESS_KEY_ID", ""),
+			R2SecretAccessKey: getEnv("R2_SECRET_ACCESS_KEY", ""),
+			R2Endpoint:        getEnv("R2_ENDPOINT", ""),
+			R2Bucket:          getEnv("R2_BUCKET", ""),
+			R2PublicURL:       getEnv("R2_PUBLIC_URL", ""),
 		},
 	}
 }

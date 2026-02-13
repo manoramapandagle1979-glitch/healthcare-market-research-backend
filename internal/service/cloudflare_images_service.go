@@ -1,19 +1,19 @@
 package service
 
 import (
-	"bytes"
-	"encoding/json"
+	"context"
 	"fmt"
-	"io"
 	"mime/multipart"
-	"net/http"
 	"strings"
-	"time"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/credentials"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/google/uuid"
 	"github.com/healthcare-market-research/backend/internal/config"
 )
 
-// CloudflareImagesService handles interactions with Cloudflare Images API
+// CloudflareImagesService handles interactions with Cloudflare R2 (S3-compatible)
 type CloudflareImagesService interface {
 	Upload(file *multipart.FileHeader, metadata map[string]string) (imageURL string, err error)
 	Delete(imageURL string) error
@@ -21,201 +21,86 @@ type CloudflareImagesService interface {
 }
 
 type cloudflareImagesService struct {
-	config     *config.CloudflareConfig
-	httpClient *http.Client
+	config    *config.CloudflareConfig
+	s3Client  *s3.Client
 }
 
-// NewCloudflareImagesService creates a new instance of CloudflareImagesService
+// NewCloudflareImagesService creates a new R2-backed CloudflareImagesService
 func NewCloudflareImagesService(cfg *config.CloudflareConfig) CloudflareImagesService {
+	s3Client := s3.New(s3.Options{
+		BaseEndpoint: aws.String(cfg.R2Endpoint),
+		Region:       "auto",
+		Credentials:  aws.NewCredentialsCache(credentials.NewStaticCredentialsProvider(cfg.R2AccessKeyID, cfg.R2SecretAccessKey, "")),
+	})
+
 	return &cloudflareImagesService{
-		config: cfg,
-		httpClient: &http.Client{
-			Timeout: 30 * time.Second,
-		},
+		config:   cfg,
+		s3Client: s3Client,
 	}
 }
 
-// CloudflareUploadResponse represents the response from Cloudflare Images API
-type CloudflareUploadResponse struct {
-	Success bool                    `json:"success"`
-	Errors  []CloudflareError       `json:"errors"`
-	Result  CloudflareImageResult   `json:"result"`
-}
-
-type CloudflareImageResult struct {
-	ID       string   `json:"id"`
-	Filename string   `json:"filename"`
-	Variants []string `json:"variants"`
-}
-
-type CloudflareError struct {
-	Code    int    `json:"code"`
-	Message string `json:"message"`
-}
-
-// CloudflareDeleteResponse represents the response from Cloudflare Images delete API
-type CloudflareDeleteResponse struct {
-	Success bool              `json:"success"`
-	Errors  []CloudflareError `json:"errors"`
-}
-
-// Upload uploads an image to Cloudflare Images
+// Upload uploads a file to Cloudflare R2 and returns its public CDN URL.
+// Object key format: <uuid>-<original-filename>
 func (s *cloudflareImagesService) Upload(file *multipart.FileHeader, metadata map[string]string) (string, error) {
-	// Open the file
 	src, err := file.Open()
 	if err != nil {
 		return "", fmt.Errorf("failed to open file: %w", err)
 	}
 	defer src.Close()
 
-	// Create a buffer to write our multipart form
-	var body bytes.Buffer
-	writer := multipart.NewWriter(&body)
+	// objectKey := fmt.Sprintf("%s-%s", uuid.New().String(), file.Filename)
+	fmt.Println("%s-%s", uuid.New().String(), file.Filename)
+	objectKey := file.Filename
 
-	// Add the file
-	part, err := writer.CreateFormFile("file", file.Filename)
-	if err != nil {
-		return "", fmt.Errorf("failed to create form file: %w", err)
+	input := &s3.PutObjectInput{
+		Bucket:      aws.String(s.config.R2Bucket),
+		Key:         aws.String(objectKey),
+		Body:        src,
+		ContentType: aws.String(file.Header.Get("Content-Type")),
 	}
 
-	if _, err := io.Copy(part, src); err != nil {
-		return "", fmt.Errorf("failed to copy file: %w", err)
+	if _, err := s.s3Client.PutObject(context.Background(), input); err != nil {
+		return "", fmt.Errorf("failed to upload to R2: %w", err)
 	}
 
-	// Add metadata if provided
-	if metadata != nil && len(metadata) > 0 {
-		metadataJSON, err := json.Marshal(metadata)
-		if err != nil {
-			return "", fmt.Errorf("failed to marshal metadata: %w", err)
-		}
-		if err := writer.WriteField("metadata", string(metadataJSON)); err != nil {
-			return "", fmt.Errorf("failed to write metadata field: %w", err)
-		}
-	}
-
-	// Close the writer to finalize the multipart message
-	if err := writer.Close(); err != nil {
-		return "", fmt.Errorf("failed to close writer: %w", err)
-	}
-
-	// Create the request
-	url := fmt.Sprintf("https://api.cloudflare.com/client/v4/accounts/%s/images/v1", s.config.AccountID)
-	req, err := http.NewRequest("POST", url, &body)
-	if err != nil {
-		return "", fmt.Errorf("failed to create request: %w", err)
-	}
-
-	// Set headers
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", s.config.APIToken))
-	req.Header.Set("Content-Type", writer.FormDataContentType())
-
-	// Execute the request
-	resp, err := s.httpClient.Do(req)
-	if err != nil {
-		return "", fmt.Errorf("failed to execute request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	// Read the response
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return "", fmt.Errorf("failed to read response: %w", err)
-	}
-
-	// Parse the response
-	var uploadResp CloudflareUploadResponse
-	if err := json.Unmarshal(respBody, &uploadResp); err != nil {
-		return "", fmt.Errorf("failed to parse response: %w", err)
-	}
-
-	// Check for errors in response
-	if !uploadResp.Success || len(uploadResp.Errors) > 0 {
-		if len(uploadResp.Errors) > 0 {
-			return "", fmt.Errorf("cloudflare API error: %s", uploadResp.Errors[0].Message)
-		}
-		return "", fmt.Errorf("upload failed with status: %d", resp.StatusCode)
-	}
-
-	// Construct the public URL
-	imageURL := fmt.Sprintf("%s/%s/public", s.config.DeliveryURL, uploadResp.Result.ID)
-	return imageURL, nil
+	publicURL := fmt.Sprintf("%s/%s", strings.TrimRight(s.config.R2PublicURL, "/"), objectKey)
+	return publicURL, nil
 }
 
-// Delete deletes an image from Cloudflare Images
+// Delete removes an object from Cloudflare R2 by its public URL.
 func (s *cloudflareImagesService) Delete(imageURL string) error {
-	// Extract image ID from URL
-	imageID, err := s.ExtractImageID(imageURL)
+	objectKey, err := s.ExtractImageID(imageURL)
 	if err != nil {
-		return fmt.Errorf("failed to extract image ID: %w", err)
+		return fmt.Errorf("failed to extract object key: %w", err)
 	}
 
-	// Create the delete request
-	url := fmt.Sprintf("https://api.cloudflare.com/client/v4/accounts/%s/images/v1/%s", s.config.AccountID, imageID)
-	req, err := http.NewRequest("DELETE", url, nil)
+	_, err = s.s3Client.DeleteObject(context.Background(), &s3.DeleteObjectInput{
+		Bucket: aws.String(s.config.R2Bucket),
+		Key:    aws.String(objectKey),
+	})
 	if err != nil {
-		return fmt.Errorf("failed to create request: %w", err)
-	}
-
-	// Set headers
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", s.config.APIToken))
-
-	// Execute the request
-	resp, err := s.httpClient.Do(req)
-	if err != nil {
-		return fmt.Errorf("failed to execute request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	// Read the response
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return fmt.Errorf("failed to read response: %w", err)
-	}
-
-	// Parse the response
-	var deleteResp CloudflareDeleteResponse
-	if err := json.Unmarshal(respBody, &deleteResp); err != nil {
-		return fmt.Errorf("failed to parse response: %w", err)
-	}
-
-	// Check for errors in response
-	if !deleteResp.Success || len(deleteResp.Errors) > 0 {
-		if len(deleteResp.Errors) > 0 {
-			return fmt.Errorf("cloudflare API error: %s", deleteResp.Errors[0].Message)
-		}
-		return fmt.Errorf("delete failed with status: %d", resp.StatusCode)
+		return fmt.Errorf("failed to delete from R2: %w", err)
 	}
 
 	return nil
 }
 
-// ExtractImageID extracts the Cloudflare image ID from a full image URL
-// Example URL: https://imagedelivery.net/Gy9qXOTaFeYdmWJ69whXhw/2cdc28f0-017a-49c4-9ed7-87056c83901/public
-// Returns: 2cdc28f0-017a-49c4-9ed7-87056c83901
+// ExtractImageID extracts the R2 object key from a full CDN URL.
+// Example: https://cdn.healthcareforesights.com/<uuid>-file.jpg → <uuid>-file.jpg
 func (s *cloudflareImagesService) ExtractImageID(imageURL string) (string, error) {
 	if imageURL == "" {
 		return "", fmt.Errorf("image URL is empty")
 	}
 
-	// Remove the delivery URL prefix
-	if !strings.HasPrefix(imageURL, s.config.DeliveryURL) {
-		return "", fmt.Errorf("invalid Cloudflare image URL: does not match delivery URL")
+	publicURL := strings.TrimRight(s.config.R2PublicURL, "/")
+	if !strings.HasPrefix(imageURL, publicURL) {
+		return "", fmt.Errorf("invalid R2 image URL: does not match public URL")
 	}
 
-	// Remove the delivery URL and leading slash
-	remainder := strings.TrimPrefix(imageURL, s.config.DeliveryURL)
-	remainder = strings.TrimPrefix(remainder, "/")
-
-	// Split by "/" and get the image ID (second part)
-	parts := strings.Split(remainder, "/")
-	if len(parts) < 2 {
-		return "", fmt.Errorf("invalid Cloudflare image URL format")
+	objectKey := strings.TrimPrefix(imageURL, publicURL+"/")
+	if objectKey == "" {
+		return "", fmt.Errorf("object key is empty in URL")
 	}
 
-	imageID := parts[0]
-	if imageID == "" {
-		return "", fmt.Errorf("image ID is empty in URL")
-	}
-
-	return imageID, nil
+	return objectKey, nil
 }

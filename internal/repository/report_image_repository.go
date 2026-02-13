@@ -1,8 +1,6 @@
 package repository
 
 import (
-	"time"
-
 	"github.com/healthcare-market-research/backend/internal/domain/report"
 	"gorm.io/gorm"
 )
@@ -13,7 +11,7 @@ type ReportImageRepository interface {
 	FindByReportID(reportID uint) ([]report.ReportImage, error)
 	FindActiveByReportID(reportID uint) ([]report.ReportImage, error)
 	Update(image *report.ReportImage) error
-	SoftDelete(id uint) error
+	Delete(id uint) error
 	CountByReportID(reportID uint) (int64, error)
 	CountActiveByReportID(reportID uint) (int64, error)
 }
@@ -59,13 +57,8 @@ func (r *reportImageRepository) Update(image *report.ReportImage) error {
 	return r.db.Save(image).Error
 }
 
-func (r *reportImageRepository) SoftDelete(id uint) error {
-	return r.db.Model(&report.ReportImage{}).
-		Where("id = ?", id).
-		Updates(map[string]interface{}{
-			"is_active":  false,
-			"updated_at": time.Now(),
-		}).Error
+func (r *reportImageRepository) Delete(id uint) error {
+	return r.db.Delete(&report.ReportImage{}, id).Error
 }
 
 func (r *reportImageRepository) CountByReportID(reportID uint) (int64, error) {

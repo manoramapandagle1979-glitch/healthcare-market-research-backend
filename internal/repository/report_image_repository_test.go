@@ -235,7 +235,7 @@ func TestReportImageRepository_Update(t *testing.T) {
 	assert.False(t, result.IsActive)
 }
 
-func TestReportImageRepository_SoftDelete(t *testing.T) {
+func TestReportImageRepository_Delete(t *testing.T) {
 	db := setupReportImageTestDB(t)
 	repo := NewReportImageRepository(db)
 	reportID := createTestReport(t, db)
@@ -252,24 +252,23 @@ func TestReportImageRepository_SoftDelete(t *testing.T) {
 	err := repo.Create(image)
 	require.NoError(t, err)
 
-	// Soft delete
-	err = repo.SoftDelete(image.ID)
+	// Hard delete
+	err = repo.Delete(image.ID)
 	require.NoError(t, err)
 
-	// Verify the image is soft deleted
-	result, err := repo.FindByID(image.ID)
-	require.NoError(t, err)
-	assert.False(t, result.IsActive)
+	// Verify the image is gone from DB
+	_, err = repo.FindByID(image.ID)
+	assert.Error(t, err)
 
 	// Verify it doesn't appear in active results
 	activeImages, err := repo.FindActiveByReportID(reportID)
 	require.NoError(t, err)
 	assert.Len(t, activeImages, 0)
 
-	// But it still appears in all results
+	// Verify it doesn't appear in all results either
 	allImages, err := repo.FindByReportID(reportID)
 	require.NoError(t, err)
-	assert.Len(t, allImages, 1)
+	assert.Len(t, allImages, 0)
 }
 
 func TestReportImageRepository_CountByReportID(t *testing.T) {

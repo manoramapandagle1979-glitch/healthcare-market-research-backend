@@ -100,20 +100,23 @@ func (s *reportImageService) UpdateImageMetadata(imageID uint, title *string, is
 	return image, nil
 }
 
-// DeleteImage performs soft delete (sets is_active=false, keeps Cloudflare image)
+// DeleteImage permanently deletes an image from both Cloudflare R2 and the database
 func (s *reportImageService) DeleteImage(imageID uint) error {
-	// Verify image exists
-	_, err := s.reportImageRepo.FindByID(imageID)
+	image, err := s.reportImageRepo.FindByID(imageID)
 	if err != nil {
 		return fmt.Errorf("image not found: %w", err)
 	}
 
-	// Soft delete (set is_active=false)
-	if err := s.reportImageRepo.SoftDelete(imageID); err != nil {
+	// Delete from Cloudflare R2
+	if err := s.cloudflareService.Delete(image.ImageURL); err != nil {
+		log.Printf("Warning: Failed to delete image from Cloudflare for image %d: %v", imageID, err)
+	}
+
+	// Hard delete from database
+	if err := s.reportImageRepo.Delete(imageID); err != nil {
 		return fmt.Errorf("failed to delete image: %w", err)
 	}
 
-	// Note: We don't delete from Cloudflare to allow potential restore
 	return nil
 }
 

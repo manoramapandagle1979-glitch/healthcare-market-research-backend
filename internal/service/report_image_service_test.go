@@ -14,7 +14,7 @@ type mockReportImageRepository struct {
 	findByReportIDFunc        func(reportID uint) ([]report.ReportImage, error)
 	findActiveByReportIDFunc  func(reportID uint) ([]report.ReportImage, error)
 	updateFunc                func(image *report.ReportImage) error
-	softDeleteFunc            func(id uint) error
+	deleteFunc                func(id uint) error
 	countByReportIDFunc       func(reportID uint) (int64, error)
 	countActiveByReportIDFunc func(reportID uint) (int64, error)
 }
@@ -63,9 +63,9 @@ func (m *mockReportImageRepository) Update(image *report.ReportImage) error {
 	return nil
 }
 
-func (m *mockReportImageRepository) SoftDelete(id uint) error {
-	if m.softDeleteFunc != nil {
-		return m.softDeleteFunc(id)
+func (m *mockReportImageRepository) Delete(id uint) error {
+	if m.deleteFunc != nil {
+		return m.deleteFunc(id)
 	}
 	return nil
 }
@@ -424,7 +424,7 @@ func TestReportImageService_UpdateImageMetadata_ImageNotFound(t *testing.T) {
 }
 
 func TestReportImageService_DeleteImage_Success(t *testing.T) {
-	softDeleteCalled := false
+	deleteCalled := false
 
 	mockReportImageRepo := &mockReportImageRepository{
 		findByIDFunc: func(id uint) (*report.ReportImage, error) {
@@ -438,8 +438,8 @@ func TestReportImageService_DeleteImage_Success(t *testing.T) {
 				UploadedBy: &userID,
 			}, nil
 		},
-		softDeleteFunc: func(id uint) error {
-			softDeleteCalled = true
+		deleteFunc: func(id uint) error {
+			deleteCalled = true
 			return nil
 		},
 	}
@@ -454,8 +454,8 @@ func TestReportImageService_DeleteImage_Success(t *testing.T) {
 		t.Errorf("DeleteImage() error = %v, want nil", err)
 	}
 
-	if !softDeleteCalled {
-		t.Error("Expected soft delete to be called")
+	if !deleteCalled {
+		t.Error("Expected delete to be called")
 	}
 }
 
