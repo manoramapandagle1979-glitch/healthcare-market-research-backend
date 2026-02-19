@@ -15,6 +15,16 @@ type Config struct {
 	Auth        AuthConfig
 	RateLimit   RateLimitConfig
 	Cloudflare  CloudflareConfig
+	Email       EmailConfig
+}
+
+type EmailConfig struct {
+	Host     string // SMTP_HOST
+	Port     int    // SMTP_PORT (default 587)
+	User     string // SMTP_USER
+	Password string // SMTP_PASSWORD
+	From     string // SMTP_FROM
+	NotifyTo string // EMAIL_NOTIFICATION_TO
 }
 
 type DatabaseConfig struct {
@@ -55,6 +65,11 @@ type CloudflareConfig struct {
 }
 
 func Load() *Config {
+	smtpPort, err := strconv.Atoi(getEnv("SMTP_PORT", "587"))
+	if err != nil {
+		smtpPort = 587
+	}
+
 	redisDB, err := strconv.Atoi(getEnv("REDIS_DB", "0"))
 	if err != nil {
 		redisDB = 0
@@ -105,6 +120,14 @@ func Load() *Config {
 			R2Endpoint:        getEnv("R2_ENDPOINT", ""),
 			R2Bucket:          getEnv("R2_BUCKET", ""),
 			R2PublicURL:       getEnv("R2_PUBLIC_URL", ""),
+		},
+		Email: EmailConfig{
+			Host:     getEnv("SMTP_HOST", "smtp.gmail.com"),
+			Port:     smtpPort,
+			User:     getEnv("SMTP_USER", ""),
+			Password: getEnv("SMTP_PASSWORD", ""),
+			From:     getEnv("SMTP_FROM", ""),
+			NotifyTo: getEnv("EMAIL_NOTIFICATION_TO", ""),
 		},
 	}
 }

@@ -21,6 +21,7 @@ import (
 	"github.com/healthcare-market-research/backend/internal/middleware"
 	"github.com/healthcare-market-research/backend/internal/repository"
 	"github.com/healthcare-market-research/backend/internal/service"
+	"github.com/healthcare-market-research/backend/pkg/email"
 	"github.com/healthcare-market-research/backend/pkg/logger"
 	"github.com/joho/godotenv"
 
@@ -134,7 +135,8 @@ func main() {
 	reportService := service.NewReportService(reportRepo, reportImageRepo, cloudflareService)
 	authorService := service.NewAuthorService(authorRepo, cloudflareService)
 	auditService := service.NewAuditService(auditRepo)
-	formService := service.NewFormService(formRepo)
+	emailService := email.NewSMTPEmailService(&cfg.Email)
+	formService := service.NewFormService(formRepo, emailService)
 	reportImageService := service.NewReportImageService(reportImageRepo, reportRepo, cloudflareService)
 	blogService := service.NewBlogService(blogRepo)
 	pressReleaseService := service.NewPressReleaseService(pressReleaseRepo)

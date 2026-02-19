@@ -7,6 +7,8 @@ import (
 	"github.com/healthcare-market-research/backend/internal/cache"
 	"github.com/healthcare-market-research/backend/internal/domain/form"
 	"github.com/healthcare-market-research/backend/internal/repository"
+	"github.com/healthcare-market-research/backend/pkg/email"
+	"github.com/healthcare-market-research/backend/pkg/logger"
 )
 
 type FormService interface {
@@ -21,11 +23,12 @@ type FormService interface {
 }
 
 type formService struct {
-	repo repository.FormRepository
+	repo     repository.FormRepository
+	emailSvc email.EmailService
 }
 
-func NewFormService(repo repository.FormRepository) FormService {
-	return &formService{repo: repo}
+func NewFormService(repo repository.FormRepository, emailSvc email.EmailService) FormService {
+	return &formService{repo: repo, emailSvc: emailSvc}
 }
 
 func (s *formService) Create(req *form.CreateSubmissionRequest) (*form.SubmissionResponse, error) {
@@ -54,6 +57,13 @@ func (s *formService) Create(req *form.CreateSubmissionRequest) (*form.Submissio
 	if err := s.repo.Create(submission); err != nil {
 		return nil, err
 	}
+
+	// Send email notification asynchronously (fire-and-forget)
+	go func() {
+		if err := s.emailSvc.SendFormNotification(submission); err != nil {
+			logger.Error("Failed to send form notification email", "error", err)
+		}
+	}()
 
 	// Invalidate caches
 	cache.DeletePattern("forms:*")
