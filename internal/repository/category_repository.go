@@ -9,6 +9,7 @@ type CategoryRepository interface {
 	GetAll(page, limit int) ([]category.Category, int64, error)
 	GetBySlug(slug string) (*category.Category, error)
 	GetByID(id uint) (*category.Category, error)
+	Update(cat *category.Category) error
 }
 
 type categoryRepository struct {
@@ -33,7 +34,7 @@ func (r *categoryRepository) GetAll(page, limit int) ([]category.Category, int64
 
 	// Raw SQL for fetching categories
 	querySQL := `
-		SELECT id, name, slug, description, is_active, created_at, updated_at
+		SELECT id, name, slug, description, image_url, is_active, created_at, updated_at
 		FROM categories
 		WHERE is_active = true
 		ORDER BY name ASC
@@ -50,7 +51,7 @@ func (r *categoryRepository) GetBySlug(slug string) (*category.Category, error) 
 
 	// Use raw SQL for better performance
 	querySQL := `
-		SELECT id, name, slug, description, is_active, created_at, updated_at
+		SELECT id, name, slug, description, image_url, is_active, created_at, updated_at
 		FROM categories
 		WHERE slug = ? AND is_active = true
 		LIMIT 1
@@ -69,7 +70,7 @@ func (r *categoryRepository) GetByID(id uint) (*category.Category, error) {
 
 	// Use raw SQL for better performance
 	querySQL := `
-		SELECT id, name, slug, description, is_active, created_at, updated_at
+		SELECT id, name, slug, description, image_url, is_active, created_at, updated_at
 		FROM categories
 		WHERE id = ? AND is_active = true
 		LIMIT 1
@@ -81,4 +82,8 @@ func (r *categoryRepository) GetByID(id uint) (*category.Category, error) {
 	}
 
 	return &cat, nil
+}
+
+func (r *categoryRepository) Update(cat *category.Category) error {
+	return r.db.Save(cat).Error
 }

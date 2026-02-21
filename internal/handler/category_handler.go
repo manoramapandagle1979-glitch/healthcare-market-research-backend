@@ -7,6 +7,7 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"github.com/healthcare-market-research/backend/internal/service"
 	"github.com/healthcare-market-research/backend/pkg/response"
+	"github.com/healthcare-market-research/backend/pkg/validation"
 )
 
 type CategoryHandler struct {
@@ -79,4 +80,46 @@ func (h *CategoryHandler) GetBySlug(c *fiber.Ctx) error {
 	}
 
 	return response.Success(c, category)
+}
+
+// UploadImage godoc
+// @Summary Upload category image
+// @Description Upload or replace the feature image for a category. Requires admin or editor role.
+// @Tags Categories
+// @Security BearerAuth
+// @Accept multipart/form-data
+// @Produce json
+// @Param id path int true "Category ID"
+// @Param file formData file true "Image file (max 10MB, allowed types: JPEG, PNG, WebP)"
+// @Success 200 {object} response.Response{data=category.Category} "Category with updated image URL"
+// @Failure 400 {object} response.Response{error=string} "Bad request - invalid ID, missing file, or validation error"
+// @Failure 401 {object} response.Response{error=string} "Unauthorized - authentication required"
+// @Failure 403 {object} response.Response{error=string} "Forbidden - requires admin or editor role"
+// @Failure 404 {object} response.Response{error=string} "Category not found"
+// @Failure 500 {object} response.Response{error=string} "Internal server error"
+// @Router /api/v1/categories/{id}/image [post]
+func (h *CategoryHandler) UploadImage(c *fiber.Ctx) error {
+	id, err := strconv.ParseUint(c.Params("id"), 10, 32)
+	if err != nil {
+		return response.BadRequest(c, "Invalid category ID")
+	}
+
+	file, err := c.FormFile("file")
+	if err != nil {
+		return response.BadRequest(c, "No image file provided")
+	}
+
+	if err := validation.ValidateImageFile(file); err != nil {
+		return response.BadRequest(c, err.Error())
+	}
+
+	updatedCategory, err := h.service.UploadImage(uint(id), file)
+	if err != nil {
+		if err.Error() == "record not found" {
+			return response.NotFound(c, "Category not found")
+		}
+		return response.InternalError(c, "Failed to upload image: "+err.Error())
+	}
+
+	return response.Success(c, updatedCategory)
 }

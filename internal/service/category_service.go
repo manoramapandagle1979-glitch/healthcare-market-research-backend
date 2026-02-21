@@ -2,6 +2,8 @@ package service
 
 import (
 	"fmt"
+	"log"
+	"mime/multipart"
 	"time"
 
 	"github.com/healthcare-market-research/backend/internal/cache"
@@ -12,14 +14,16 @@ import (
 type CategoryService interface {
 	GetAll(page, limit int) ([]category.Category, int64, error)
 	GetBySlug(slug string) (*category.Category, error)
+	UploadImage(categoryID uint, file *multipart.FileHeader) (*category.Category, error)
 }
 
 type categoryService struct {
-	repo repository.CategoryRepository
+	repo              repository.CategoryRepository
+	cloudflareService CloudflareImagesService
 }
 
-func NewCategoryService(repo repository.CategoryRepository) CategoryService {
-	return &categoryService{repo: repo}
+func NewCategoryService(repo repository.CategoryRepository, cloudflareService CloudflareImagesService) CategoryService {
+	return &categoryService{repo: repo, cloudflareService: cloudflareService}
 }
 
 func (s *categoryService) GetAll(page, limit int) ([]category.Category, int64, error) {
@@ -68,4 +72,46 @@ func (s *categoryService) GetBySlug(slug string) (*category.Category, error) {
 	}
 
 	return &cat, nil
+}
+
+// UploadImage uploads or replaces the feature image for a category
+func (s *categoryService) UploadImage(categoryID uint, file *multipart.FileHeader) (*category.Category, error) {
+	// Get category to verify existence and retrieve current image URL
+	cat, err := s.repo.GetByID(categoryID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Delete old image from Cloudflare if one exists
+	if cat.ImageURL != "" {
+		if err := s.cloudflareService.Delete(cat.ImageURL); err != nil {
+			log.Printf("Warning: Failed to delete old image from Cloudflare for category %d: %v", categoryID, err)
+		}
+	}
+
+	// Upload new image to Cloudflare
+	metadata := map[string]string{
+		"category_id": fmt.Sprintf("%d", categoryID),
+		"type":        "category_image",
+	}
+	imageURL, err := s.cloudflareService.Upload(file, metadata)
+	if err != nil {
+		return nil, fmt.Errorf("failed to upload image: %w", err)
+	}
+
+	// Persist the new image URL
+	cat.ImageURL = imageURL
+	if err := s.repo.Update(cat); err != nil {
+		// Rollback: remove the just-uploaded image
+		if deleteErr := s.cloudflareService.Delete(imageURL); deleteErr != nil {
+			log.Printf("Warning: Failed to rollback image upload for category %d: %v", categoryID, deleteErr)
+		}
+		return nil, fmt.Errorf("failed to update category: %w", err)
+	}
+
+	// Invalidate relevant caches
+	cache.DeletePattern("categories:list:*")
+	cache.Delete(fmt.Sprintf("category:slug:%s", cat.Slug))
+
+	return cat, nil
 }

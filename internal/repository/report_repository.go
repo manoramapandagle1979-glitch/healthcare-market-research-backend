@@ -82,7 +82,7 @@ func (r *reportRepository) GetAll(page, limit int) ([]report.Report, int64, erro
 	}
 
 	querySQL := `
-		SELECT r.*, c.name as category_name
+		SELECT r.*, c.name as category_name, c.image_url as category_image_url
 		FROM reports r
 		LEFT JOIN categories c ON r.category_id = c.id
 		WHERE r.deleted_at IS NULL
@@ -211,7 +211,7 @@ func (r *reportRepository) GetAllWithFilters(filters ReportFilters) ([]report.Re
 
 	// Fetch query
 	querySQL := fmt.Sprintf(`
-		SELECT r.*, c.name as category_name
+		SELECT r.*, c.name as category_name, c.image_url as category_image_url
 		FROM reports r
 		LEFT JOIN categories c ON r.category_id = c.id
 		WHERE %s
@@ -230,7 +230,7 @@ func (r *reportRepository) GetBySlug(slug string) (*report.ReportWithRelations, 
 
 	// Use raw SQL to properly handle JSONB fields and joins
 	querySQL := `
-		SELECT r.*, c.name as category_name
+		SELECT r.*, c.name as category_name, c.image_url as category_image_url
 		FROM reports r
 		INNER JOIN categories c ON r.category_id = c.id AND c.is_active = true
 		WHERE r.slug = $1 AND r.deleted_at IS NULL
@@ -275,7 +275,7 @@ func (r *reportRepository) GetByCategorySlug(categorySlug string, page, limit in
 	}
 
 	querySQL := `
-		SELECT r.*, c.name as category_name
+		SELECT r.*, c.name as category_name, c.image_url as category_image_url
 		FROM reports r
 		INNER JOIN categories c ON r.category_id = c.id
 		WHERE c.slug = ? AND c.is_active = true AND r.deleted_at IS NULL
@@ -309,7 +309,7 @@ func (r *reportRepository) GetByAuthorID(authorID uint, page, limit int) ([]repo
 
 	// Data query with category join and pagination, exclude soft-deleted
 	querySQL := `
-		SELECT r.*, c.name as category_name
+		SELECT r.*, c.name as category_name, c.image_url as category_image_url
 		FROM reports r
 		LEFT JOIN categories c ON r.category_id = c.id
 		WHERE r.author_ids::jsonb @> ?::jsonb AND r.deleted_at IS NULL
@@ -339,7 +339,7 @@ func (r *reportRepository) Search(query string, page, limit int) ([]report.Repor
 	}
 
 	querySQL := `
-		SELECT r.*, c.name as category_name
+		SELECT r.*, c.name as category_name, c.image_url as category_image_url
 		FROM reports r
 		LEFT JOIN categories c ON r.category_id = c.id
 		WHERE (r.title ILIKE ? OR r.description ILIKE ? OR r.summary ILIKE ?) AND r.deleted_at IS NULL
@@ -394,7 +394,7 @@ func (r *reportRepository) GetByIDWithRelations(id uint) (*report.ReportWithRela
 
 	// Use raw SQL to properly handle JSONB fields and joins
 	querySQL := `
-		SELECT r.*, c.name as category_name
+		SELECT r.*, c.name as category_name, c.image_url as category_image_url
 		FROM reports r
 		INNER JOIN categories c ON r.category_id = c.id AND c.is_active = true
 		WHERE r.id = $1 AND r.deleted_at IS NULL

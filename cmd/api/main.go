@@ -130,8 +130,8 @@ func main() {
 	// Initialize services
 	userService := service.NewUserService(userRepo)
 	authService := service.NewAuthService(userRepo, &cfg.Auth)
-	categoryService := service.NewCategoryService(categoryRepo)
 	cloudflareService := service.NewCloudflareImagesService(&cfg.Cloudflare)
+	categoryService := service.NewCategoryService(categoryRepo, cloudflareService)
 	reportService := service.NewReportService(reportRepo, reportImageRepo, cloudflareService)
 	authorService := service.NewAuthorService(authorRepo, cloudflareService)
 	auditService := service.NewAuditService(auditRepo)
@@ -241,6 +241,7 @@ func main() {
 	v1.Get("/categories", categoryHandler.GetAll)
 	v1.Get("/categories/:slug", categoryHandler.GetBySlug)
 	v1.Get("/categories/:slug/reports", reportHandler.GetByCategorySlug)
+	v1.Post("/categories/:id/image", middleware.RequireAuth(authService), middleware.RequireRole("admin", "editor"), categoryHandler.UploadImage)
 
 	// Author routes (public read, protected write)
 	v1.Get("/authors", authorHandler.GetAll)

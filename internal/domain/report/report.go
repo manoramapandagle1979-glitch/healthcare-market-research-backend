@@ -154,7 +154,8 @@ type UserReference struct {
 type Report struct {
 	ID              uint            `json:"id" gorm:"primaryKey"`
 	CategoryID      uint            `json:"category_id" gorm:"index;not null"`
-	CategoryName    string          `json:"category_name,omitempty" gorm:"->"`
+	CategoryName     string          `json:"category_name,omitempty" gorm:"->"`
+	CategoryImageURL string          `json:"category_image_url,omitempty" gorm:"->"`
 	Title           string          `json:"title" gorm:"type:varchar(500);not null"`
 	Slug            string          `json:"slug" gorm:"type:varchar(500);uniqueIndex;not null"`
 	Description     string          `json:"description" gorm:"type:text"`
