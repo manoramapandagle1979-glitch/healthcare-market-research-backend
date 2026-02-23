@@ -73,6 +73,7 @@ type SubmissionMetadata struct {
 	IPAddress   string `json:"ipAddress,omitempty"`
 	UserAgent   string `json:"userAgent,omitempty"`
 	Referrer    string `json:"referrer,omitempty"`
+	PageURL     string `json:"pageURL,omitempty"`
 }
 
 // Value implements the driver.Valuer interface for GORM

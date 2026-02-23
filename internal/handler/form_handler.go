@@ -45,6 +45,11 @@ func (h *FormHandler) Create(c *fiber.Ctx) error {
 	if req.Metadata.Referrer == "" {
 		req.Metadata.Referrer = c.Get("Referer")
 	}
+	if req.Metadata.PageURL == "" {
+		if origin := c.Get("Origin"); origin != "" {
+			req.Metadata.PageURL = origin
+		}
+	}
 
 	submissionResp, err := h.service.Create(&req)
 	if err != nil {

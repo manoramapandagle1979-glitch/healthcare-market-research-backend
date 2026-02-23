@@ -43,6 +43,7 @@ func buildEmail(submission *form.FormSubmission) (subject, body string) {
 	fullName := strVal(data["fullName"])
 	submittedAt := submission.CreatedAt.Format(time.RFC1123)
 	submissionID := fmt.Sprintf("%d", submission.ID)
+	metaRows := buildMetadataRows(submission.Metadata)
 
 	if submission.Category == form.CategoryContact {
 		subject = fmt.Sprintf("[Contact Form] New Submission – %s", fullName)
@@ -60,6 +61,7 @@ func buildEmail(submission *form.FormSubmission) (subject, body string) {
     <tr><td style="background:#f5f5f5"><strong>Phone</strong></td><td>%s</td></tr>
     <tr><td style="background:#f5f5f5"><strong>Subject</strong></td><td>%s</td></tr>
     <tr><td style="background:#f5f5f5;vertical-align:top"><strong>Message</strong></td><td style="white-space:pre-wrap">%s</td></tr>
+    %s
   </table>
 </body>
 </html>`,
@@ -72,6 +74,7 @@ func buildEmail(submission *form.FormSubmission) (subject, body string) {
 			strVal(data["phone"]),
 			strVal(data["subject"]),
 			strVal(data["message"]),
+			metaRows,
 		)
 	} else {
 		subject = fmt.Sprintf("[Request Sample] New Submission – %s", fullName)
@@ -90,6 +93,7 @@ func buildEmail(submission *form.FormSubmission) (subject, body string) {
     <tr><td style="background:#f5f5f5"><strong>Phone</strong></td><td>%s</td></tr>
     <tr><td style="background:#f5f5f5"><strong>Report Title</strong></td><td>%s</td></tr>
     <tr><td style="background:#f5f5f5;vertical-align:top"><strong>Additional Info</strong></td><td style="white-space:pre-wrap">%s</td></tr>
+    %s
   </table>
 </body>
 </html>`,
@@ -103,10 +107,28 @@ func buildEmail(submission *form.FormSubmission) (subject, body string) {
 			strVal(data["phone"]),
 			strVal(data["reportTitle"]),
 			strVal(data["additionalInfo"]),
+			metaRows,
 		)
 	}
 
 	return subject, body
+}
+
+func buildMetadataRows(meta form.SubmissionMetadata) string {
+	if meta.IPAddress == "" && meta.PageURL == "" && meta.Referrer == "" {
+		return ""
+	}
+	rows := `<tr><td colspan="2" style="background:#e8eaf6;padding:8px"><strong>Submission Source</strong></td></tr>`
+	if meta.IPAddress != "" {
+		rows += fmt.Sprintf(`<tr><td style="background:#f0f4ff;width:160px"><strong>IP Address</strong></td><td>%s</td></tr>`, meta.IPAddress)
+	}
+	if meta.PageURL != "" {
+		rows += fmt.Sprintf(`<tr><td style="background:#f0f4ff"><strong>Page URL</strong></td><td style="word-break:break-all">%s</td></tr>`, meta.PageURL)
+	}
+	if meta.Referrer != "" {
+		rows += fmt.Sprintf(`<tr><td style="background:#f0f4ff"><strong>Referrer</strong></td><td style="word-break:break-all">%s</td></tr>`, meta.Referrer)
+	}
+	return rows
 }
 
 func strVal(v interface{}) string {
