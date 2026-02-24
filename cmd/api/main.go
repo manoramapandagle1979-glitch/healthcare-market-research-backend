@@ -126,6 +126,7 @@ func main() {
 	blogRepo := repository.NewBlogRepository(db.DB)
 	pressReleaseRepo := repository.NewPressReleaseRepository(db.DB)
 	dashboardRepo := repository.NewDashboardRepository(db.DB)
+	redirectRepo := repository.NewRedirectRepository(db.DB)
 
 	// Initialize services
 	userService := service.NewUserService(userRepo)
@@ -140,6 +141,7 @@ func main() {
 	reportImageService := service.NewReportImageService(reportImageRepo, reportRepo, cloudflareService)
 	blogService := service.NewBlogService(blogRepo)
 	pressReleaseService := service.NewPressReleaseService(pressReleaseRepo)
+	redirectService := service.NewRedirectService(redirectRepo)
 	dashboardService := service.NewDashboardService(
 		dashboardRepo, reportRepo, blogRepo, pressReleaseRepo,
 		userRepo, formRepo, auditRepo,
@@ -168,6 +170,7 @@ func main() {
 	blogHandler := handler.NewBlogHandler(blogService)
 	pressReleaseHandler := handler.NewPressReleaseHandler(pressReleaseService)
 	dashboardHandler := handler.NewDashboardHandler(dashboardService)
+	redirectHandler := handler.NewRedirectHandler(redirectService)
 
 	// Initialize Fiber app
 	app := fiber.New(fiber.Config{
@@ -308,6 +311,21 @@ func main() {
 	v1.Patch("/press-releases/:id/restore", middleware.RequireAuth(authService), middleware.RequireRole("admin"), pressReleaseHandler.Restore)
 	v1.Patch("/press-releases/:id/schedule", middleware.RequireAuth(authService), middleware.RequireRole("admin", "editor"), pressReleaseHandler.SchedulePublish)
 	v1.Patch("/press-releases/:id/cancel-schedule", middleware.RequireAuth(authService), middleware.RequireRole("admin", "editor"), pressReleaseHandler.CancelScheduledPublish)
+
+	// Redirect routes
+	// Public endpoints (no auth required)
+	v1.Get("/redirects/active", redirectHandler.GetActive)
+	v1.Post("/redirects/hit/:id", redirectHandler.IncrementHit)
+
+	// Admin endpoints (auth required, admin/editor roles)
+	redirectsGroup := v1.Group("/redirects", middleware.RequireAuth(authService), middleware.RequireRole("admin", "editor"))
+	redirectsGroup.Get("/", redirectHandler.GetAll)
+	redirectsGroup.Post("/", redirectHandler.Create)
+	redirectsGroup.Get("/:id", redirectHandler.GetByID)
+	redirectsGroup.Put("/:id", redirectHandler.Update)
+	redirectsGroup.Delete("/:id", redirectHandler.Delete)
+	redirectsGroup.Patch("/:id/toggle", redirectHandler.Toggle)
+	redirectsGroup.Delete("/bulk", middleware.RequireRole("admin"), redirectHandler.BulkDelete)
 
 	// Dashboard routes (requires authentication)
 	dashboard := v1.Group("/dashboard", middleware.RequireAuth(authService))

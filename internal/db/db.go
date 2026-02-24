@@ -12,6 +12,7 @@ import (
 	"github.com/healthcare-market-research/backend/internal/domain/category"
 	"github.com/healthcare-market-research/backend/internal/domain/form"
 	"github.com/healthcare-market-research/backend/internal/domain/press_release"
+	"github.com/healthcare-market-research/backend/internal/domain/redirect"
 	"github.com/healthcare-market-research/backend/internal/domain/report"
 	"github.com/healthcare-market-research/backend/internal/domain/user"
 	"gorm.io/driver/postgres"
@@ -93,6 +94,7 @@ func Migrate() error {
 		&form.FormSubmission{},
 		&blog.Blog{},
 		&press_release.PressRelease{},
+		&redirect.Redirect{},
 	)
 
 	if err != nil {
