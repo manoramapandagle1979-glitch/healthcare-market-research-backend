@@ -27,6 +27,9 @@ type cloudflareImagesService struct {
 
 // NewCloudflareImagesService creates a new R2-backed CloudflareImagesService
 func NewCloudflareImagesService(cfg *config.CloudflareConfig) CloudflareImagesService {
+	// Strip any surrounding quotes that may have been introduced via env variable quoting
+	cfg.R2PublicURL = strings.Trim(cfg.R2PublicURL, "\"")
+
 	s3Client := s3.New(s3.Options{
 		BaseEndpoint: aws.String(cfg.R2Endpoint),
 		Region:       "auto",
