@@ -59,6 +59,7 @@ type PressRelease struct {
 	PublishDate             *time.Time         `json:"publishDate,omitempty" gorm:"index"`
 	ScheduledPublishEnabled bool               `json:"scheduledPublishEnabled" gorm:"default:false"`
 	Location                string             `json:"location,omitempty" gorm:"type:varchar(255)"`
+	ReportURL               string             `json:"reportUrl,omitempty" gorm:"type:varchar(500)"`
 	Metadata    PressReleaseMetadata   `json:"metadata" gorm:"type:jsonb"`
 	ReviewedBy  *uint                  `json:"reviewedBy,omitempty" gorm:"index"`
 	ReviewedAt  *time.Time             `json:"reviewedAt,omitempty"`
@@ -83,6 +84,7 @@ type CreatePressReleaseRequest struct {
 	Status      PressReleaseStatus    `json:"status" validate:"required,oneof=draft review published"`
 	PublishDate string                `json:"publishDate" validate:"required"`
 	Location    string                `json:"location,omitempty"`
+	ReportURL   string                `json:"reportUrl,omitempty"`
 	Metadata    *PressReleaseMetadata `json:"metadata,omitempty"`
 }
 
@@ -98,6 +100,7 @@ type UpdatePressReleaseRequest struct {
 	Status      *PressReleaseStatus    `json:"status,omitempty" validate:"omitempty,oneof=draft review published"`
 	PublishDate *string                `json:"publishDate,omitempty"`
 	Location    *string                `json:"location,omitempty"`
+	ReportURL   *string                `json:"reportUrl,omitempty"`
 	Metadata    *PressReleaseMetadata  `json:"metadata,omitempty"`
 }
 

@@ -16,6 +16,13 @@ type Config struct {
 	RateLimit   RateLimitConfig
 	Cloudflare  CloudflareConfig
 	Email       EmailConfig
+	PayPal      PayPalConfig
+}
+
+type PayPalConfig struct {
+	ClientID     string // PAYPAL_CLIENT_ID
+	ClientSecret string // PAYPAL_CLIENT_SECRET
+	Mode         string // PAYPAL_MODE: "sandbox" or "live"
 }
 
 type EmailConfig struct {
@@ -128,6 +135,11 @@ func Load() *Config {
 			Password: getEnv("SMTP_PASSWORD", ""),
 			From:     getEnv("SMTP_FROM", ""),
 			NotifyTo: getEnv("EMAIL_NOTIFICATION_TO", ""),
+		},
+		PayPal: PayPalConfig{
+			ClientID:     getEnv("PAYPAL_CLIENT_ID", ""),
+			ClientSecret: getEnv("PAYPAL_CLIENT_SECRET", ""),
+			Mode:         getEnv("PAYPAL_MODE", "sandbox"),
 		},
 	}
 }

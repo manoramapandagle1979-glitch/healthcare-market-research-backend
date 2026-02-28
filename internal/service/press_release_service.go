@@ -62,6 +62,7 @@ func (s *pressReleaseService) Create(req *press_release.CreatePressReleaseReques
 		Status:      req.Status,
 		PublishDate: &publishDate,
 		Location:    req.Location,
+		ReportURL:   req.ReportURL,
 	}
 
 	// Set metadata if provided
@@ -203,6 +204,10 @@ func (s *pressReleaseService) Update(id uint, req *press_release.UpdatePressRele
 
 	if req.Location != nil {
 		updates["location"] = *req.Location
+	}
+
+	if req.ReportURL != nil {
+		updates["report_url"] = *req.ReportURL
 	}
 
 	if req.Metadata != nil {
