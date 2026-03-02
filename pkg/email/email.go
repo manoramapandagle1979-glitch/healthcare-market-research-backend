@@ -27,18 +27,71 @@ func NewSMTPEmailService(cfg *config.EmailConfig) EmailService {
 }
 
 // SendFormNotification sends an HTML email notification for a form submission.
+// It sends two emails: one to the admin (NotifyTo) and one confirmation to the client.
 func (s *smtpEmailService) SendFormNotification(submission *form.FormSubmission) error {
-	subject, body := buildEmail(submission)
-
-	m := gomail.NewMessage()
-	m.SetHeader("From", s.cfg.From)
-	m.SetHeader("To", s.cfg.NotifyTo)
-	m.SetHeader("Subject", subject)
-	m.SetBody("text/html", body)
-
 	d := gomail.NewDialer(s.cfg.Host, s.cfg.Port, s.cfg.User, s.cfg.Password)
 
-	return d.DialAndSend(m)
+	// 1. Admin notification
+	adminSubject, adminBody := buildEmail(submission)
+	adminMsg := gomail.NewMessage()
+	adminMsg.SetHeader("From", s.cfg.From)
+	adminMsg.SetHeader("To", s.cfg.NotifyTo)
+	adminMsg.SetHeader("Subject", adminSubject)
+	adminMsg.SetBody("text/html", adminBody)
+
+	if err := d.DialAndSend(adminMsg); err != nil {
+		return err
+	}
+
+	// 2. Client confirmation
+	clientEmail := strVal(submission.Data["email"])
+	if clientEmail == "" {
+		return nil
+	}
+
+	clientSubject, clientBody := buildClientConfirmationEmail(submission)
+	clientMsg := gomail.NewMessage()
+	clientMsg.SetHeader("From", s.cfg.From)
+	clientMsg.SetHeader("To", clientEmail)
+	clientMsg.SetHeader("Subject", clientSubject)
+	clientMsg.SetBody("text/html", clientBody)
+
+	return d.DialAndSend(clientMsg)
+}
+
+func buildClientConfirmationEmail(submission *form.FormSubmission) (subject, body string) {
+	fullName := strVal(submission.Data["fullName"])
+
+	if submission.Category == form.CategoryContact {
+		subject = "We received your message — HealthcareForesights"
+		body = fmt.Sprintf(`<!DOCTYPE html>
+<html>
+<body style="font-family:Arial,sans-serif;color:#333;max-width:600px;margin:0 auto;padding:20px">
+  <h2 style="color:#1a73e8">Thank You for Contacting Us</h2>
+  <p>Dear %s,</p>
+  <p>We have received your message and our team will get back to you shortly.</p>
+  <p>Your reference number is <strong>#%d</strong>. Please keep it for your records.</p>
+  <p>If you have any urgent queries, feel free to reach us at <a href="mailto:support@healthcareforesights.com">support@healthcareforesights.com</a>.</p>
+  <p>Thank you for reaching out to HealthcareForesights!</p>
+</body>
+</html>`, fullName, submission.ID)
+	} else {
+		reportTitle := strVal(submission.Data["reportTitle"])
+		subject = "Sample Request Received — HealthcareForesights"
+		body = fmt.Sprintf(`<!DOCTYPE html>
+<html>
+<body style="font-family:Arial,sans-serif;color:#333;max-width:600px;margin:0 auto;padding:20px">
+  <h2 style="color:#1a73e8">Sample Request Received</h2>
+  <p>Dear %s,</p>
+  <p>Thank you for your interest in <strong>%s</strong>. We have received your sample request and will send the sample report to your email within 1–2 business days.</p>
+  <p>Your reference number is <strong>#%d</strong>. Please keep it for your records.</p>
+  <p>For any questions, contact us at <a href="mailto:support@healthcareforesights.com">support@healthcareforesights.com</a>.</p>
+  <p>Thank you for choosing HealthcareForesights!</p>
+</body>
+</html>`, fullName, reportTitle, submission.ID)
+	}
+
+	return subject, body
 }
 
 func buildEmail(submission *form.FormSubmission) (subject, body string) {
