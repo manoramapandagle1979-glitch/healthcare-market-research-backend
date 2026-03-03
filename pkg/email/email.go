@@ -32,7 +32,7 @@ func (s *smtpEmailService) SendFormNotification(submission *form.FormSubmission)
 	d := gomail.NewDialer(s.cfg.Host, s.cfg.Port, s.cfg.User, s.cfg.Password)
 
 	// 1. Admin notification
-	adminSubject, adminBody := buildEmail(submission)
+	adminSubject, adminBody := buildEmail(submission, s.cfg.ClientURL)
 	adminMsg := gomail.NewMessage()
 	adminMsg.SetHeader("From", s.cfg.From)
 	adminMsg.SetHeader("To", s.cfg.NotifyTo)
@@ -94,7 +94,7 @@ func buildClientConfirmationEmail(submission *form.FormSubmission) (subject, bod
 	return subject, body
 }
 
-func buildEmail(submission *form.FormSubmission) (subject, body string) {
+func buildEmail(submission *form.FormSubmission, clientURL string) (subject, body string) {
 	data := submission.Data
 	fullName := strVal(data["fullName"])
 	submittedAt := submission.CreatedAt.Format(time.RFC1123)
@@ -134,6 +134,12 @@ func buildEmail(submission *form.FormSubmission) (subject, body string) {
 		)
 	} else {
 		subject = fmt.Sprintf("[Request Sample] New Submission – %s", fullName)
+		reportTitle := strVal(data["reportTitle"])
+		reportSlug := strVal(data["reportSlug"])
+		reportTitleCell := reportTitle
+		if reportSlug != "" {
+			reportTitleCell = fmt.Sprintf(`<a href="%s/reports/%s" style="color:#1a73e8">%s</a>`, clientURL, reportSlug, reportTitle)
+		}
 		body = fmt.Sprintf(`<!DOCTYPE html>
 <html>
 <body style="font-family:Arial,sans-serif;color:#333;max-width:600px;margin:0 auto;padding:20px">
@@ -161,7 +167,7 @@ func buildEmail(submission *form.FormSubmission) (subject, body string) {
 			strVal(data["jobTitle"]),
 			strVal(data["country"]),
 			strVal(data["phone"]),
-			strVal(data["reportTitle"]),
+			reportTitleCell,
 			strVal(data["additionalInfo"]),
 			metaRows,
 		)

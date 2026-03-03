@@ -26,12 +26,13 @@ type PayPalConfig struct {
 }
 
 type EmailConfig struct {
-	Host     string // SMTP_HOST
-	Port     int    // SMTP_PORT (default 587)
-	User     string // SMTP_USER
-	Password string // SMTP_PASSWORD
-	From     string // SMTP_FROM
-	NotifyTo string // EMAIL_NOTIFICATION_TO
+	Host      string // SMTP_HOST
+	Port      int    // SMTP_PORT (default 587)
+	User      string // SMTP_USER
+	Password  string // SMTP_PASSWORD
+	From      string // SMTP_FROM
+	NotifyTo  string // EMAIL_NOTIFICATION_TO
+	ClientURL string // CLIENT_URL (e.g. https://healthcareforesights.com)
 }
 
 type DatabaseConfig struct {
@@ -129,12 +130,13 @@ func Load() *Config {
 			R2PublicURL:       getEnv("R2_PUBLIC_URL", ""),
 		},
 		Email: EmailConfig{
-			Host:     getEnv("SMTP_HOST", "smtp.gmail.com"),
-			Port:     smtpPort,
-			User:     getEnv("SMTP_USER", ""),
-			Password: getEnv("SMTP_PASSWORD", ""),
-			From:     getEnv("SMTP_FROM", ""),
-			NotifyTo: getEnv("EMAIL_NOTIFICATION_TO", ""),
+			Host:      getEnv("SMTP_HOST", "smtp.gmail.com"),
+			Port:      smtpPort,
+			User:      getEnv("SMTP_USER", ""),
+			Password:  getEnv("SMTP_PASSWORD", ""),
+			From:      getEnv("SMTP_FROM", ""),
+			NotifyTo:  getEnv("EMAIL_NOTIFICATION_TO", ""),
+			ClientURL: getEnv("CLIENT_URL", "https://healthcareforesights.com"),
 		},
 		PayPal: PayPalConfig{
 			ClientID:     getEnv("PAYPAL_CLIENT_ID", ""),
