@@ -33,8 +33,8 @@ func NewFormService(repo repository.FormRepository, emailSvc email.EmailService)
 
 func (s *formService) Create(req *form.CreateSubmissionRequest) (*form.SubmissionResponse, error) {
 	// Validate category
-	if req.Category != form.CategoryContact && req.Category != form.CategoryRequestSample {
-		return nil, fmt.Errorf("invalid category: must be 'contact' or 'request-sample'")
+	if req.Category != form.CategoryContact && req.Category != form.CategoryRequestSample && req.Category != form.CategoryRequestCustomization {
+		return nil, fmt.Errorf("invalid category: must be 'contact', 'request-sample', or 'request-customization'")
 	}
 
 	// Validate required fields based on category
@@ -99,7 +99,7 @@ func (s *formService) validateFormData(category form.FormCategory, data form.For
 		}
 	}
 
-	if category == form.CategoryRequestSample {
+	if category == form.CategoryRequestSample || category == form.CategoryRequestCustomization {
 		if data["jobTitle"] == nil || data["jobTitle"] == "" {
 			return fmt.Errorf("jobTitle is required for request sample form")
 		}

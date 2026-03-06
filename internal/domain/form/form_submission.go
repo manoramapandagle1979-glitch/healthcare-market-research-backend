@@ -11,8 +11,9 @@ import (
 type FormCategory string
 
 const (
-	CategoryContact       FormCategory = "contact"
-	CategoryRequestSample FormCategory = "request-sample"
+	CategoryContact              FormCategory = "contact"
+	CategoryRequestSample        FormCategory = "request-sample"
+	CategoryRequestCustomization FormCategory = "request-customization"
 )
 
 // FormStatus represents the processing status of a submission
@@ -96,7 +97,7 @@ func (m *SubmissionMetadata) Scan(value interface{}) error {
 // FormSubmission represents a form submission in the database
 type FormSubmission struct {
 	ID       uint         `json:"id" gorm:"primaryKey"`
-	Category FormCategory `json:"category" gorm:"type:varchar(20);not null;index"`
+	Category FormCategory `json:"category" gorm:"type:varchar(30);not null;index"`
 	Status   FormStatus   `json:"status" gorm:"type:varchar(20);default:'pending';index"`
 
 	// Form-specific data stored as JSONB
