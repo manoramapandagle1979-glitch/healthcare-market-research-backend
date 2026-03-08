@@ -14,6 +14,7 @@ const (
 	CategoryContact              FormCategory = "contact"
 	CategoryRequestSample        FormCategory = "request-sample"
 	CategoryRequestCustomization FormCategory = "request-customization"
+	CategoryScheduleDemo         FormCategory = "schedule-demo"
 )
 
 // FormStatus represents the processing status of a submission

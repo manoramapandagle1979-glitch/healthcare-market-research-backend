@@ -62,7 +62,8 @@ func (s *smtpEmailService) SendFormNotification(submission *form.FormSubmission)
 func buildClientConfirmationEmail(submission *form.FormSubmission) (subject, body string) {
 	fullName := strVal(submission.Data["fullName"])
 
-	if submission.Category == form.CategoryContact {
+	switch submission.Category {
+	case form.CategoryContact:
 		subject = "We received your message — HealthcareForesights"
 		body = fmt.Sprintf(`<!DOCTYPE html>
 <html>
@@ -75,7 +76,58 @@ func buildClientConfirmationEmail(submission *form.FormSubmission) (subject, bod
   <p>Thank you for reaching out to HealthcareForesights!</p>
 </body>
 </html>`, fullName, submission.ID)
-	} else {
+
+	case form.CategoryScheduleDemo:
+		preferredTimeLocal := strVal(submission.Data["preferredTimeLocal"])
+		userTimezone := strVal(submission.Data["userTimezone"])
+		preferredDateTimeUTC := strVal(submission.Data["preferredDateTimeUTC"])
+
+		// Build the scheduling summary block
+		schedulingRows := ""
+		if preferredTimeLocal != "" {
+			tzNote := ""
+			if userTimezone != "" {
+				tzNote = fmt.Sprintf(` <span style="color:#888;font-size:12px">(%s)</span>`, userTimezone)
+			}
+			schedulingRows += fmt.Sprintf(`<tr><td style="background:#f0f7ff;padding:8px"><strong>Your Preferred Time</strong></td><td style="padding:8px">%s%s</td></tr>`, preferredTimeLocal, tzNote)
+		} else if preferredDateTimeUTC != "" {
+			if t, err := time.Parse(time.RFC3339, preferredDateTimeUTC); err == nil {
+				schedulingRows += fmt.Sprintf(`<tr><td style="background:#f0f7ff;padding:8px"><strong>Preferred Time (UTC)</strong></td><td style="padding:8px">%s</td></tr>`, t.UTC().Format("Mon, Jan 2, 2006 at 3:04 PM UTC"))
+			}
+		}
+
+		schedulingSection := ""
+		if schedulingRows != "" {
+			schedulingSection = fmt.Sprintf(`
+  <div style="background:#f0f7ff;border:1px solid #bfdbfe;border-radius:8px;padding:16px;margin:20px 0">
+    <h3 style="color:#1d4ed8;margin:0 0 12px 0;font-size:15px">Your Requested Schedule</h3>
+    <table width="100%%" cellpadding="0" cellspacing="0" style="border-collapse:collapse">
+      %s
+    </table>
+  </div>`, schedulingRows)
+		}
+
+		subject = "Demo Request Received — HealthcareForesights"
+		body = fmt.Sprintf(`<!DOCTYPE html>
+<html>
+<body style="font-family:Arial,sans-serif;color:#333;max-width:600px;margin:0 auto;padding:20px">
+  <h2 style="color:#1a73e8">Your Demo Request is Confirmed!</h2>
+  <p>Dear %s,</p>
+  <p>Thank you for your interest in HealthcareForesights! We have received your demo request and our team will reach out to you within <strong>24 hours</strong> to confirm your session.%s</p>
+  <p>Your reference number is <strong>#%d</strong>.</p>
+  <p>During the demo, you can expect:</p>
+  <ul>
+    <li>Live walkthrough of our research platform and reports</li>
+    <li>Discussion of your specific research needs</li>
+    <li>Overview of subscription options and pricing</li>
+    <li>Q&amp;A with our product experts</li>
+  </ul>
+  <p>If you need to reschedule or have any questions, contact us at <a href="mailto:support@healthcareforesights.com">support@healthcareforesights.com</a>.</p>
+  <p>We look forward to speaking with you!</p>
+</body>
+</html>`, fullName, schedulingSection, submission.ID)
+
+	default:
 		reportTitle := strVal(submission.Data["reportTitle"])
 		subject = "Sample Request Received — HealthcareForesights"
 		body = fmt.Sprintf(`<!DOCTYPE html>
@@ -101,7 +153,8 @@ func buildEmail(submission *form.FormSubmission, clientURL string) (subject, bod
 	submissionID := fmt.Sprintf("%d", submission.ID)
 	metaRows := buildMetadataRows(submission.Metadata)
 
-	if submission.Category == form.CategoryContact {
+	switch submission.Category {
+	case form.CategoryContact:
 		subject = fmt.Sprintf("[Contact Form] New Submission – %s", fullName)
 		body = fmt.Sprintf(`<!DOCTYPE html>
 <html>
@@ -121,18 +174,69 @@ func buildEmail(submission *form.FormSubmission, clientURL string) (subject, bod
   </table>
 </body>
 </html>`,
-			submissionID,
-			submittedAt,
-			fullName,
-			strVal(data["email"]),
-			strVal(data["company"]),
-			strVal(data["country"]),
-			strVal(data["phone"]),
-			strVal(data["subject"]),
-			strVal(data["message"]),
+			submissionID, submittedAt, fullName,
+			strVal(data["email"]), strVal(data["company"]), strVal(data["country"]),
+			strVal(data["phone"]), strVal(data["subject"]), strVal(data["message"]),
 			metaRows,
 		)
-	} else {
+
+	case form.CategoryScheduleDemo:
+		subject = fmt.Sprintf("[Demo Request] New Submission – %s", fullName)
+
+		// Build scheduling rows from UTC + client local time
+		schedulingRows := ""
+		if preferredDateTimeUTC := strVal(data["preferredDateTimeUTC"]); preferredDateTimeUTC != "" {
+			if t, err := time.Parse(time.RFC3339, preferredDateTimeUTC); err == nil {
+				schedulingRows += fmt.Sprintf(`<tr><td style="background:#e8f4fd"><strong>UTC Time</strong></td><td>%s</td></tr>`, t.UTC().Format("Mon, Jan 2, 2006 at 3:04 PM UTC"))
+			}
+		}
+		if preferredTimeLocal := strVal(data["preferredTimeLocal"]); preferredTimeLocal != "" {
+			tz := strVal(data["userTimezone"])
+			tzNote := ""
+			if tz != "" {
+				tzNote = fmt.Sprintf(` <span style="color:#888">(%s)</span>`, tz)
+			}
+			schedulingRows += fmt.Sprintf(`<tr><td style="background:#e8f4fd"><strong>Client's Local Time</strong></td><td>%s%s</td></tr>`, preferredTimeLocal, tzNote)
+		}
+		if schedulingRows == "" {
+			schedulingRows = `<tr><td colspan="2" style="background:#e8f4fd;color:#888">No preferred date/time selected</td></tr>`
+		}
+
+		body = fmt.Sprintf(`<!DOCTYPE html>
+<html>
+<body style="font-family:Arial,sans-serif;color:#333;max-width:600px;margin:0 auto;padding:20px">
+  <h2 style="color:#e53935">New Demo Request — Action Required</h2>
+  <p>A new demo has been requested. Please contact the client to confirm the session.</p>
+  <h3 style="color:#1a73e8;border-bottom:1px solid #e0e0e0;padding-bottom:6px">Scheduling Details</h3>
+  <table width="100%%" cellpadding="8" cellspacing="0" style="border-collapse:collapse;margin-bottom:20px">
+    %s
+  </table>
+  <h3 style="color:#1a73e8;border-bottom:1px solid #e0e0e0;padding-bottom:6px">Client Details</h3>
+  <table width="100%%" cellpadding="8" cellspacing="0" style="border-collapse:collapse;margin-bottom:20px">
+    <tr><td style="background:#f5f5f5;width:160px"><strong>Submission ID</strong></td><td>%s</td></tr>
+    <tr><td style="background:#f5f5f5"><strong>Submitted At</strong></td><td>%s</td></tr>
+    <tr><td style="background:#f5f5f5"><strong>Full Name</strong></td><td>%s</td></tr>
+    <tr><td style="background:#f5f5f5"><strong>Email</strong></td><td><a href="mailto:%s">%s</a></td></tr>
+    <tr><td style="background:#f5f5f5"><strong>Company</strong></td><td>%s</td></tr>
+    <tr><td style="background:#f5f5f5"><strong>Job Title</strong></td><td>%s</td></tr>
+    <tr><td style="background:#f5f5f5"><strong>Phone</strong></td><td>%s</td></tr>
+    <tr><td style="background:#f5f5f5"><strong>Company Size</strong></td><td>%s</td></tr>
+    <tr><td style="background:#f5f5f5"><strong>Interest Area</strong></td><td>%s</td></tr>
+    <tr><td style="background:#f5f5f5;vertical-align:top"><strong>Additional Info</strong></td><td style="white-space:pre-wrap">%s</td></tr>
+    %s
+  </table>
+</body>
+</html>`,
+			schedulingRows,
+			submissionID, submittedAt, fullName,
+			strVal(data["email"]), strVal(data["email"]),
+			strVal(data["company"]), strVal(data["jobTitle"]),
+			strVal(data["phone"]), strVal(data["companySize"]),
+			strVal(data["interests"]), strVal(data["additionalInfo"]),
+			metaRows,
+		)
+
+	default:
 		subject = fmt.Sprintf("[Request Sample] New Submission – %s", fullName)
 		reportTitle := strVal(data["reportTitle"])
 		reportSlug := strVal(data["reportSlug"])
@@ -159,16 +263,10 @@ func buildEmail(submission *form.FormSubmission, clientURL string) (subject, bod
   </table>
 </body>
 </html>`,
-			submissionID,
-			submittedAt,
-			fullName,
-			strVal(data["email"]),
-			strVal(data["company"]),
-			strVal(data["jobTitle"]),
-			strVal(data["country"]),
-			strVal(data["phone"]),
-			reportTitleCell,
-			strVal(data["additionalInfo"]),
+			submissionID, submittedAt, fullName,
+			strVal(data["email"]), strVal(data["company"]), strVal(data["jobTitle"]),
+			strVal(data["country"]), strVal(data["phone"]),
+			reportTitleCell, strVal(data["additionalInfo"]),
 			metaRows,
 		)
 	}
