@@ -19,6 +19,46 @@ func NewPressReleaseHandler(service service.PressReleaseService) *PressReleaseHa
 	return &PressReleaseHandler{service: service}
 }
 
+// GetByCategorySlug godoc
+// @Summary Get press releases by category slug
+// @Description Get a paginated list of published press releases for a specific category
+// @Tags PressReleases
+// @Accept json
+// @Produce json
+// @Param slug path string true "Category slug"
+// @Param page query int false "Page number (default: 1)"
+// @Param limit query int false "Items per page (default: 20, max: 100)"
+// @Success 200 {object} press_release.PressReleaseListResponse "List of press releases with pagination"
+// @Failure 500 {object} response.Response{error=string} "Internal server error"
+// @Router /api/v1/categories/{slug}/press-releases [get]
+func (h *PressReleaseHandler) GetByCategorySlug(c *fiber.Ctx) error {
+	slug := c.Params("slug")
+	page, _ := strconv.Atoi(c.Query("page", "1"))
+	limit, _ := strconv.Atoi(c.Query("limit", "20"))
+
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 || limit > 100 {
+		limit = 20
+	}
+
+	pressReleases, total, err := h.service.GetByCategorySlug(slug, page, limit)
+	if err != nil {
+		return response.InternalError(c, "Failed to fetch press releases")
+	}
+
+	totalPages := int(math.Ceil(float64(total) / float64(limit)))
+
+	return c.JSON(press_release.PressReleaseListResponse{
+		PressReleases: pressReleases,
+		Total:         total,
+		Page:          page,
+		Limit:         limit,
+		TotalPages:    totalPages,
+	})
+}
+
 // Create godoc
 // @Summary Create press release
 // @Description Create a new press release
@@ -73,15 +113,16 @@ func (h *PressReleaseHandler) GetAll(c *fiber.Ctx) error {
 	}
 
 	query := press_release.GetPressReleasesQuery{
-		Status:     c.Query("status", ""),
-		CategoryID: c.Query("categoryId", ""),
-		Tags:       c.Query("tags", ""),
-		AuthorID:   c.Query("authorId", ""),
-		Location:   c.Query("location", ""),
-		Search:     c.Query("search", ""),
-		Deleted:    c.Query("deleted", ""),
-		Page:       page,
-		Limit:      limit,
+		Status:       c.Query("status", ""),
+		CategoryID:   c.Query("categoryId", ""),
+		CategorySlug: c.Query("category", ""),
+		Tags:         c.Query("tags", ""),
+		AuthorID:     c.Query("authorId", ""),
+		Location:     c.Query("location", ""),
+		Search:       c.Query("search", ""),
+		Deleted:      c.Query("deleted", ""),
+		Page:         page,
+		Limit:        limit,
 	}
 
 	pressReleases, total, err := h.service.GetAll(query)

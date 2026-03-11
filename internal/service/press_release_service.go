@@ -14,6 +14,7 @@ import (
 type PressReleaseService interface {
 	Create(req *press_release.CreatePressReleaseRequest) (*press_release.PressRelease, error)
 	GetAll(query press_release.GetPressReleasesQuery) ([]press_release.PressRelease, int64, error)
+	GetByCategorySlug(categorySlug string, page, limit int) ([]press_release.PressRelease, int64, error)
 	GetByID(id uint) (*press_release.PressRelease, error)
 	GetBySlug(slug string) (*press_release.PressRelease, error)
 	Update(id uint, req *press_release.UpdatePressReleaseRequest) (*press_release.PressRelease, error)
@@ -112,6 +113,10 @@ func (s *pressReleaseService) GetAll(query press_release.GetPressReleasesQuery) 
 
 	// Don't cache filtered/search results
 	return s.repo.GetAll(query)
+}
+
+func (s *pressReleaseService) GetByCategorySlug(categorySlug string, page, limit int) ([]press_release.PressRelease, int64, error) {
+	return s.repo.GetByCategorySlug(categorySlug, page, limit)
 }
 
 func (s *pressReleaseService) GetByID(id uint) (*press_release.PressRelease, error) {

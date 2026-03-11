@@ -106,15 +106,16 @@ type UpdatePressReleaseRequest struct {
 
 // GetPressReleasesQuery represents query parameters for filtering press releases
 type GetPressReleasesQuery struct {
-	Status     string
-	CategoryID string
-	Tags       string
-	AuthorID   string
-	Location   string
-	Search     string
-	Deleted    string
-	Page       int
-	Limit      int
+	Status       string
+	CategoryID   string
+	CategorySlug string
+	Tags         string
+	AuthorID     string
+	Location     string
+	Search       string
+	Deleted      string
+	Page         int
+	Limit        int
 }
 
 // PressReleaseListResponse represents a list of press releases with pagination

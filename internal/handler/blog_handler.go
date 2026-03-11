@@ -19,6 +19,46 @@ func NewBlogHandler(service service.BlogService) *BlogHandler {
 	return &BlogHandler{service: service}
 }
 
+// GetByCategorySlug godoc
+// @Summary Get blogs by category slug
+// @Description Get a paginated list of published blogs for a specific category
+// @Tags Blogs
+// @Accept json
+// @Produce json
+// @Param slug path string true "Category slug"
+// @Param page query int false "Page number (default: 1)"
+// @Param limit query int false "Items per page (default: 20, max: 100)"
+// @Success 200 {object} blog.BlogListResponse "List of blogs with pagination"
+// @Failure 500 {object} response.Response{error=string} "Internal server error"
+// @Router /api/v1/categories/{slug}/blogs [get]
+func (h *BlogHandler) GetByCategorySlug(c *fiber.Ctx) error {
+	slug := c.Params("slug")
+	page, _ := strconv.Atoi(c.Query("page", "1"))
+	limit, _ := strconv.Atoi(c.Query("limit", "20"))
+
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 || limit > 100 {
+		limit = 20
+	}
+
+	blogs, total, err := h.service.GetByCategorySlug(slug, page, limit)
+	if err != nil {
+		return response.InternalError(c, "Failed to fetch blogs")
+	}
+
+	totalPages := int(math.Ceil(float64(total) / float64(limit)))
+
+	return c.JSON(blog.BlogListResponse{
+		Blogs:      blogs,
+		Total:      total,
+		Page:       page,
+		Limit:      limit,
+		TotalPages: totalPages,
+	})
+}
+
 // Create godoc
 // @Summary Create blog
 // @Description Create a new blog post
@@ -73,15 +113,16 @@ func (h *BlogHandler) GetAll(c *fiber.Ctx) error {
 	}
 
 	query := blog.GetBlogsQuery{
-		Status:     c.Query("status", ""),
-		CategoryID: c.Query("categoryId", ""),
-		Tags:       c.Query("tags", ""),
-		AuthorID:   c.Query("authorId", ""),
-		Location:   c.Query("location", ""),
-		Search:     c.Query("search", ""),
-		Deleted:    c.Query("deleted", ""),
-		Page:       page,
-		Limit:      limit,
+		Status:       c.Query("status", ""),
+		CategoryID:   c.Query("categoryId", ""),
+		CategorySlug: c.Query("category", ""),
+		Tags:         c.Query("tags", ""),
+		AuthorID:     c.Query("authorId", ""),
+		Location:     c.Query("location", ""),
+		Search:       c.Query("search", ""),
+		Deleted:      c.Query("deleted", ""),
+		Page:         page,
+		Limit:        limit,
 	}
 
 	blogs, total, err := h.service.GetAll(query)

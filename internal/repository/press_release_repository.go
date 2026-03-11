@@ -11,6 +11,7 @@ import (
 type PressReleaseRepository interface {
 	Create(pr *press_release.PressRelease) error
 	GetAll(query press_release.GetPressReleasesQuery) ([]press_release.PressRelease, int64, error)
+	GetByCategorySlug(categorySlug string, page, limit int) ([]press_release.PressRelease, int64, error)
 	GetByID(id uint) (*press_release.PressRelease, error)
 	GetBySlug(slug string) (*press_release.PressRelease, error)
 	Update(id uint, updates map[string]interface{}) error
@@ -48,7 +49,9 @@ func (r *pressReleaseRepository) GetAll(query press_release.GetPressReleasesQuer
 		db = db.Where("status = ?", query.Status)
 	}
 
-	if query.CategoryID != "" {
+	if query.CategorySlug != "" {
+		db = db.Where("category_id = (SELECT id FROM categories WHERE slug = ? AND is_active = true)", query.CategorySlug)
+	} else if query.CategoryID != "" {
 		db = db.Where("category_id = ?", query.CategoryID)
 	}
 
@@ -102,6 +105,27 @@ func (r *pressReleaseRepository) GetAll(query press_release.GetPressReleasesQuer
 
 	// Fetch press releases with author and category details
 	if err := db.Preload("Author").Preload("Category").Find(&pressReleases).Error; err != nil {
+		return nil, 0, err
+	}
+
+	return pressReleases, total, nil
+}
+
+func (r *pressReleaseRepository) GetByCategorySlug(categorySlug string, page, limit int) ([]press_release.PressRelease, int64, error) {
+	var pressReleases []press_release.PressRelease
+	var total int64
+
+	offset := (page - 1) * limit
+
+	if err := r.db.Model(&press_release.PressRelease{}).
+		Where("category_id = (SELECT id FROM categories WHERE slug = ? AND is_active = true) AND deleted_at IS NULL AND status = 'published'", categorySlug).
+		Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	if err := r.db.Where("category_id = (SELECT id FROM categories WHERE slug = ? AND is_active = true) AND deleted_at IS NULL AND status = 'published'", categorySlug).
+		Order("created_at DESC").Offset(offset).Limit(limit).
+		Preload("Author").Preload("Category").Find(&pressReleases).Error; err != nil {
 		return nil, 0, err
 	}
 

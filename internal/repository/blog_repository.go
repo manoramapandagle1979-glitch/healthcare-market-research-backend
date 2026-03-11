@@ -11,6 +11,7 @@ import (
 type BlogRepository interface {
 	Create(b *blog.Blog) error
 	GetAll(query blog.GetBlogsQuery) ([]blog.Blog, int64, error)
+	GetByCategorySlug(categorySlug string, page, limit int) ([]blog.Blog, int64, error)
 	GetByID(id uint) (*blog.Blog, error)
 	GetBySlug(slug string) (*blog.Blog, error)
 	Update(id uint, updates map[string]interface{}) error
@@ -48,7 +49,9 @@ func (r *blogRepository) GetAll(query blog.GetBlogsQuery) ([]blog.Blog, int64, e
 		db = db.Where("status = ?", query.Status)
 	}
 
-	if query.CategoryID != "" {
+	if query.CategorySlug != "" {
+		db = db.Where("category_id = (SELECT id FROM categories WHERE slug = ? AND is_active = true)", query.CategorySlug)
+	} else if query.CategoryID != "" {
 		db = db.Where("category_id = ?", query.CategoryID)
 	}
 
@@ -102,6 +105,27 @@ func (r *blogRepository) GetAll(query blog.GetBlogsQuery) ([]blog.Blog, int64, e
 
 	// Fetch blogs with author and category details
 	if err := db.Preload("Author").Preload("Category").Find(&blogs).Error; err != nil {
+		return nil, 0, err
+	}
+
+	return blogs, total, nil
+}
+
+func (r *blogRepository) GetByCategorySlug(categorySlug string, page, limit int) ([]blog.Blog, int64, error) {
+	var blogs []blog.Blog
+	var total int64
+
+	offset := (page - 1) * limit
+
+	if err := r.db.Model(&blog.Blog{}).
+		Where("category_id = (SELECT id FROM categories WHERE slug = ? AND is_active = true) AND deleted_at IS NULL AND status = 'published'", categorySlug).
+		Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	if err := r.db.Where("category_id = (SELECT id FROM categories WHERE slug = ? AND is_active = true) AND deleted_at IS NULL AND status = 'published'", categorySlug).
+		Order("created_at DESC").Offset(offset).Limit(limit).
+		Preload("Author").Preload("Category").Find(&blogs).Error; err != nil {
 		return nil, 0, err
 	}
 

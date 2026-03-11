@@ -249,6 +249,8 @@ func main() {
 	v1.Get("/categories", categoryHandler.GetAll)
 	v1.Get("/categories/:slug", categoryHandler.GetBySlug)
 	v1.Get("/categories/:slug/reports", reportHandler.GetByCategorySlug)
+	v1.Get("/categories/:slug/blogs", blogHandler.GetByCategorySlug)
+	v1.Get("/categories/:slug/press-releases", pressReleaseHandler.GetByCategorySlug)
 	v1.Post("/categories/:id/image", middleware.RequireAuth(authService), middleware.RequireRole("admin", "editor"), categoryHandler.UploadImage)
 
 	// Author routes (public read, protected write)

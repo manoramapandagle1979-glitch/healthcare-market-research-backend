@@ -14,6 +14,7 @@ import (
 type BlogService interface {
 	Create(req *blog.CreateBlogRequest) (*blog.Blog, error)
 	GetAll(query blog.GetBlogsQuery) ([]blog.Blog, int64, error)
+	GetByCategorySlug(categorySlug string, page, limit int) ([]blog.Blog, int64, error)
 	GetByID(id uint) (*blog.Blog, error)
 	GetBySlug(slug string) (*blog.Blog, error)
 	Update(id uint, req *blog.UpdateBlogRequest) (*blog.Blog, error)
@@ -111,6 +112,10 @@ func (s *blogService) GetAll(query blog.GetBlogsQuery) ([]blog.Blog, int64, erro
 
 	// Don't cache filtered/search results
 	return s.repo.GetAll(query)
+}
+
+func (s *blogService) GetByCategorySlug(categorySlug string, page, limit int) ([]blog.Blog, int64, error) {
+	return s.repo.GetByCategorySlug(categorySlug, page, limit)
 }
 
 func (s *blogService) GetByID(id uint) (*blog.Blog, error) {

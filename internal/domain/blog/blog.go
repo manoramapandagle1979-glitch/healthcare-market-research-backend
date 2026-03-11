@@ -103,15 +103,16 @@ type UpdateBlogRequest struct {
 
 // GetBlogsQuery represents query parameters for filtering blogs
 type GetBlogsQuery struct {
-	Status     string
-	CategoryID string
-	Tags       string
-	AuthorID   string
-	Location   string
-	Search     string
-	Deleted    string
-	Page       int
-	Limit      int
+	Status       string
+	CategoryID   string
+	CategorySlug string
+	Tags         string
+	AuthorID     string
+	Location     string
+	Search       string
+	Deleted      string
+	Page         int
+	Limit        int
 }
 
 // BlogListResponse represents a list of blogs with pagination
