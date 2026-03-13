@@ -702,3 +702,59 @@ func (h *ReportHandler) CancelScheduledPublish(c *fiber.Ctx) error {
 
 	return c.JSON(fiber.Map{"report": r})
 }
+
+// GetSitemap godoc
+// @Summary Get published report slugs for sitemap generation
+// @Description Returns paginated slugs and dates for published reports (up to 1000 per page). Intended for sitemap generation only.
+// @Tags Reports
+// @Accept json
+// @Produce json
+// @Param page query int false "Page number (default: 1)"
+// @Param limit query int false "Items per page (default: 1000, max: 1000)"
+// @Success 200 {object} response.Response "Sitemap data"
+// @Failure 500 {object} response.Response{error=string} "Internal server error"
+// @Router /api/v1/sitemap/reports [get]
+func (h *ReportHandler) GetSitemap(c *fiber.Ctx) error {
+	page, _ := strconv.Atoi(c.Query("page", "1"))
+	limit, _ := strconv.Atoi(c.Query("limit", "1000"))
+
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 || limit > 1000 {
+		limit = 1000
+	}
+
+	reports, total, err := h.service.GetAllWithFilters(repository.ReportFilters{
+		Status: "published",
+		Page:   page,
+		Limit:  limit,
+	})
+	if err != nil {
+		return response.InternalError(c, "Failed to fetch reports for sitemap")
+	}
+
+	type sitemapItem struct {
+		Slug        string     `json:"slug"`
+		UpdatedAt   time.Time  `json:"updated_at"`
+		PublishDate *time.Time `json:"publish_date,omitempty"`
+	}
+
+	items := make([]sitemapItem, len(reports))
+	for i, r := range reports {
+		items[i] = sitemapItem{
+			Slug:        r.Slug,
+			UpdatedAt:   r.UpdatedAt,
+			PublishDate: r.PublishDate,
+		}
+	}
+
+	totalPages := int(math.Ceil(float64(total) / float64(limit)))
+
+	return response.SuccessWithMeta(c, items, &response.Meta{
+		Page:       page,
+		Limit:      limit,
+		Total:      total,
+		TotalPages: totalPages,
+	})
+}

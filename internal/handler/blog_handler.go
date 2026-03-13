@@ -499,3 +499,59 @@ func (h *BlogHandler) CancelScheduledPublish(c *fiber.Ctx) error {
 
 	return c.JSON(blog.BlogResponse{Blog: *b})
 }
+
+// GetSitemap godoc
+// @Summary Get published blog slugs for sitemap generation
+// @Description Returns paginated slugs and dates for published blogs (up to 1000 per page). Intended for sitemap generation only.
+// @Tags Blogs
+// @Accept json
+// @Produce json
+// @Param page query int false "Page number (default: 1)"
+// @Param limit query int false "Items per page (default: 1000, max: 1000)"
+// @Success 200 {object} response.Response "Sitemap data"
+// @Failure 500 {object} response.Response{error=string} "Internal server error"
+// @Router /api/v1/sitemap/blogs [get]
+func (h *BlogHandler) GetSitemap(c *fiber.Ctx) error {
+	page, _ := strconv.Atoi(c.Query("page", "1"))
+	limit, _ := strconv.Atoi(c.Query("limit", "1000"))
+
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 || limit > 1000 {
+		limit = 1000
+	}
+
+	blogs, total, err := h.service.GetAll(blog.GetBlogsQuery{
+		Status: "published",
+		Page:   page,
+		Limit:  limit,
+	})
+	if err != nil {
+		return response.InternalError(c, "Failed to fetch blogs for sitemap")
+	}
+
+	type sitemapItem struct {
+		Slug        string     `json:"slug"`
+		UpdatedAt   time.Time  `json:"updated_at"`
+		PublishDate *time.Time `json:"publish_date,omitempty"`
+	}
+
+	items := make([]sitemapItem, len(blogs))
+	for i, b := range blogs {
+		items[i] = sitemapItem{
+			Slug:        b.Slug,
+			UpdatedAt:   b.UpdatedAt,
+			PublishDate: b.PublishDate,
+		}
+	}
+
+	totalPages := int(math.Ceil(float64(total) / float64(limit)))
+
+	return response.SuccessWithMeta(c, items, &response.Meta{
+		Page:       page,
+		Limit:      limit,
+		Total:      total,
+		TotalPages: totalPages,
+	})
+}

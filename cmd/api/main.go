@@ -319,6 +319,11 @@ func main() {
 	v1.Patch("/press-releases/:id/schedule", middleware.RequireAuth(authService), middleware.RequireRole("admin", "editor"), pressReleaseHandler.SchedulePublish)
 	v1.Patch("/press-releases/:id/cancel-schedule", middleware.RequireAuth(authService), middleware.RequireRole("admin", "editor"), pressReleaseHandler.CancelScheduledPublish)
 
+	// Sitemap routes (public, high-limit endpoints for sitemap generation)
+	v1.Get("/sitemap/reports", reportHandler.GetSitemap)
+	v1.Get("/sitemap/blogs", blogHandler.GetSitemap)
+	v1.Get("/sitemap/press-releases", pressReleaseHandler.GetSitemap)
+
 	// Redirect routes
 	// Public endpoints (no auth required)
 	v1.Get("/redirects/active", redirectHandler.GetActive)
