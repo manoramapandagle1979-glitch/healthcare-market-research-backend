@@ -129,12 +129,21 @@ const (
 	ActivityBlogPublished         ActivityType = "blog_published"
 	ActivityBlogCreated           ActivityType = "blog_created"
 	ActivityBlogUpdated           ActivityType = "blog_updated"
+	ActivityBlogDeleted           ActivityType = "blog_deleted"
 	ActivityPressReleasePublished ActivityType = "press_release_published"
 	ActivityPressReleaseCreated   ActivityType = "press_release_created"
+	ActivityPressReleaseUpdated   ActivityType = "press_release_updated"
+	ActivityPressReleaseDeleted   ActivityType = "press_release_deleted"
 	ActivityUserCreated           ActivityType = "user_created"
 	ActivityUserUpdated           ActivityType = "user_updated"
+	ActivityUserDeleted           ActivityType = "user_deleted"
+	ActivityUserRoleChanged       ActivityType = "user_role_changed"
 	ActivityLeadReceived          ActivityType = "lead_received"
 	ActivityLeadProcessed         ActivityType = "lead_processed"
+	ActivityAuthLogin             ActivityType = "auth_login"
+	ActivityAuthLoginFailed       ActivityType = "auth_login_failed"
+	ActivityAuthLogout            ActivityType = "auth_logout"
+	ActivityAuthTokenRefresh      ActivityType = "auth_token_refresh"
 )
 
 // GetActivityTitle returns a human-readable title for an activity type
@@ -147,12 +156,21 @@ func GetActivityTitle(activityType ActivityType) string {
 		ActivityBlogPublished:         "Blog Published",
 		ActivityBlogCreated:           "Blog Created",
 		ActivityBlogUpdated:           "Blog Updated",
+		ActivityBlogDeleted:           "Blog Deleted",
 		ActivityPressReleasePublished: "Press Release Published",
 		ActivityPressReleaseCreated:   "Press Release Created",
+		ActivityPressReleaseUpdated:   "Press Release Updated",
+		ActivityPressReleaseDeleted:   "Press Release Deleted",
 		ActivityUserCreated:           "User Created",
 		ActivityUserUpdated:           "User Updated",
+		ActivityUserDeleted:           "User Deleted",
+		ActivityUserRoleChanged:       "User Role Changed",
 		ActivityLeadReceived:          "Lead Received",
 		ActivityLeadProcessed:         "Lead Processed",
+		ActivityAuthLogin:             "User Logged In",
+		ActivityAuthLoginFailed:       "Login Failed",
+		ActivityAuthLogout:            "User Logged Out",
+		ActivityAuthTokenRefresh:      "Session Refreshed",
 	}
 	if title, ok := titles[activityType]; ok {
 		return title

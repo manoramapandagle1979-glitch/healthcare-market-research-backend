@@ -438,48 +438,57 @@ func (r *dashboardRepository) GetTopCategories(limit int) ([]dashboard.TopCatego
 
 // Helper function to map audit log action to activity type
 func mapActionToActivityType(action, entityType string) string {
-	switch entityType {
-	case "report":
-		switch action {
-		case "create":
-			return string(dashboard.ActivityReportCreated)
-		case "update":
-			return string(dashboard.ActivityReportUpdated)
-		case "delete":
-			return string(dashboard.ActivityReportDeleted)
-		case "publish":
-			return string(dashboard.ActivityReportPublished)
-		}
-	case "blog":
-		switch action {
-		case "create":
-			return string(dashboard.ActivityBlogCreated)
-		case "update":
-			return string(dashboard.ActivityBlogUpdated)
-		case "publish":
-			return string(dashboard.ActivityBlogPublished)
-		}
-	case "press_release":
-		switch action {
-		case "create":
-			return string(dashboard.ActivityPressReleaseCreated)
-		case "publish":
-			return string(dashboard.ActivityPressReleasePublished)
-		}
-	case "user":
-		switch action {
-		case "create":
-			return string(dashboard.ActivityUserCreated)
-		case "update":
-			return string(dashboard.ActivityUserUpdated)
-		}
-	case "form_submission":
-		switch action {
-		case "create":
-			return string(dashboard.ActivityLeadReceived)
-		case "process":
-			return string(dashboard.ActivityLeadProcessed)
-		}
+	switch action {
+	// Report actions
+	case "report.create":
+		return string(dashboard.ActivityReportCreated)
+	case "report.update":
+		return string(dashboard.ActivityReportUpdated)
+	case "report.delete":
+		return string(dashboard.ActivityReportDeleted)
+	case "report.publish":
+		return string(dashboard.ActivityReportPublished)
+	// Blog actions
+	case "blog.create":
+		return string(dashboard.ActivityBlogCreated)
+	case "blog.update":
+		return string(dashboard.ActivityBlogUpdated)
+	case "blog.delete":
+		return string(dashboard.ActivityBlogDeleted)
+	case "blog.publish":
+		return string(dashboard.ActivityBlogPublished)
+	// Press release actions
+	case "press_release.create":
+		return string(dashboard.ActivityPressReleaseCreated)
+	case "press_release.update":
+		return string(dashboard.ActivityPressReleaseUpdated)
+	case "press_release.delete":
+		return string(dashboard.ActivityPressReleaseDeleted)
+	case "press_release.publish":
+		return string(dashboard.ActivityPressReleasePublished)
+	// User actions
+	case "user.create":
+		return string(dashboard.ActivityUserCreated)
+	case "user.update":
+		return string(dashboard.ActivityUserUpdated)
+	case "user.delete":
+		return string(dashboard.ActivityUserDeleted)
+	case "user.role_change":
+		return string(dashboard.ActivityUserRoleChanged)
+	// Form submission / lead actions
+	case "form_submission.create":
+		return string(dashboard.ActivityLeadReceived)
+	case "form_submission.process":
+		return string(dashboard.ActivityLeadProcessed)
+	// Auth actions
+	case "auth.login":
+		return string(dashboard.ActivityAuthLogin)
+	case "auth.login_failed":
+		return string(dashboard.ActivityAuthLoginFailed)
+	case "auth.logout":
+		return string(dashboard.ActivityAuthLogout)
+	case "auth.token_refresh":
+		return string(dashboard.ActivityAuthTokenRefresh)
 	}
 	return action
 }
