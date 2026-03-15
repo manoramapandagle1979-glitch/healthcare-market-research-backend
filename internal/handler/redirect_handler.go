@@ -245,6 +245,7 @@ func (h *RedirectHandler) GetActive(c *fiber.Ctx) error {
 		return response.InternalError(c, "Failed to fetch active redirects")
 	}
 
+	c.Set("Cache-Control", "public, s-maxage=60, stale-while-revalidate=300")
 	return response.Success(c, redirects)
 }
 
