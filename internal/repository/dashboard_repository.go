@@ -49,7 +49,7 @@ func (r *dashboardRepository) GetReportStats(userRole string) (*dashboard.Report
 			COUNT(CASE WHEN status = 'draft' THEN 1 END) as draft,
 			COUNT(CASE WHEN deleted_at IS NOT NULL THEN 1 END) as archived
 		`).
-		Where("deleted_at IS NULL OR deleted_at IS NOT NULL").
+		Where("deleted_at IS NULL").
 		Scan(&counts).Error
 
 	if err != nil {
