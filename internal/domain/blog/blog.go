@@ -113,6 +113,7 @@ type GetBlogsQuery struct {
 	Deleted      string
 	Page         int
 	Limit        int
+	SortBy       string
 }
 
 // BlogListResponse represents a list of blogs with pagination

@@ -158,6 +158,19 @@ func (h *ReportHandler) GetAll(c *fiber.Ctx) error {
 		}
 	}
 
+	// Validate sort_by parameter
+	var sortBy string
+	if s := c.Query("sort_by", ""); s != "" {
+		allowed := map[string]string{
+			"publish_date_desc": "r.publish_date DESC NULLS LAST",
+			"created_at_desc":   "r.created_at DESC",
+			"updated_at_desc":   "r.updated_at DESC",
+		}
+		if mapped, ok := allowed[s]; ok {
+			sortBy = mapped
+		}
+	}
+
 	var reports []report.Report
 	var total int64
 	var err error
@@ -169,7 +182,7 @@ func (h *ReportHandler) GetAll(c *fiber.Ctx) error {
 	hasFilters := status != "" || category != "" || geographyParam != "" || search != "" ||
 		createdBy != nil || updatedBy != nil ||
 		createdAfter != nil || createdBefore != nil || updatedAfter != nil || updatedBefore != nil ||
-		publishedAfter != nil || publishedBefore != nil || showDeleted
+		publishedAfter != nil || publishedBefore != nil || showDeleted || sortBy != ""
 
 	if hasFilters {
 		// Parse geography into array
@@ -196,6 +209,7 @@ func (h *ReportHandler) GetAll(c *fiber.Ctx) error {
 			PublishedAfter:  publishedAfter,
 			PublishedBefore: publishedBefore,
 			ShowDeleted:     showDeleted,
+			SortBy:          sortBy,
 			Page:            page,
 			Limit:           limit,
 		}
@@ -729,6 +743,7 @@ func (h *ReportHandler) GetSitemap(c *fiber.Ctx) error {
 		Status: "published",
 		Page:   page,
 		Limit:  limit,
+		SortBy: "r.publish_date DESC NULLS LAST",
 	})
 	if err != nil {
 		return response.InternalError(c, "Failed to fetch reports for sitemap")

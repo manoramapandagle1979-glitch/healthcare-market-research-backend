@@ -116,6 +116,7 @@ type GetPressReleasesQuery struct {
 	Deleted      string
 	Page         int
 	Limit        int
+	SortBy       string
 }
 
 // PressReleaseListResponse represents a list of press releases with pagination

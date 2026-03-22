@@ -112,6 +112,19 @@ func (h *PressReleaseHandler) GetAll(c *fiber.Ctx) error {
 		limit = 20
 	}
 
+	// Validate sort_by parameter
+	var sortBy string
+	if s := c.Query("sort_by", ""); s != "" {
+		allowed := map[string]string{
+			"publish_date_desc": "publish_date DESC NULLS LAST",
+			"created_at_desc":   "created_at DESC",
+			"updated_at_desc":   "updated_at DESC",
+		}
+		if mapped, ok := allowed[s]; ok {
+			sortBy = mapped
+		}
+	}
+
 	query := press_release.GetPressReleasesQuery{
 		Status:       c.Query("status", ""),
 		CategoryID:   c.Query("categoryId", ""),
@@ -121,6 +134,7 @@ func (h *PressReleaseHandler) GetAll(c *fiber.Ctx) error {
 		Location:     c.Query("location", ""),
 		Search:       c.Query("search", ""),
 		Deleted:      c.Query("deleted", ""),
+		SortBy:       sortBy,
 		Page:         page,
 		Limit:        limit,
 	}
@@ -526,6 +540,7 @@ func (h *PressReleaseHandler) GetSitemap(c *fiber.Ctx) error {
 		Status: "published",
 		Page:   page,
 		Limit:  limit,
+		SortBy: "publish_date DESC NULLS LAST",
 	})
 	if err != nil {
 		return response.InternalError(c, "Failed to fetch press releases for sitemap")

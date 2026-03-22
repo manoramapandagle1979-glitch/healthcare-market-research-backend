@@ -30,6 +30,7 @@ type ReportFilters struct {
 	PublishedBefore *time.Time
 	IncludeDrafts   bool       // For admin, show drafts
 	ShowDeleted     bool       // For admin, show only deleted reports
+	SortBy          string     // Custom sort clause (e.g. "r.publish_date DESC NULLS LAST")
 }
 
 type ReportRepository interface {
@@ -209,15 +210,21 @@ func (r *reportRepository) GetAllWithFilters(filters ReportFilters) ([]report.Re
 		return nil, 0, err
 	}
 
+	// Determine sort order
+	orderClause := "COALESCE(r.id) DESC"
+	if filters.SortBy != "" {
+		orderClause = filters.SortBy
+	}
+
 	// Fetch query
 	querySQL := fmt.Sprintf(`
 		SELECT r.*, c.name as category_name, c.image_url as category_image_url
 		FROM reports r
 		LEFT JOIN categories c ON r.category_id = c.id
 		WHERE %s
-		ORDER BY COALESCE(r.id) DESC
+		ORDER BY %s
 		LIMIT ? OFFSET ?
-	`, whereClause)
+	`, whereClause, orderClause)
 
 	args = append(args, filters.Limit, offset)
 	err := r.db.Raw(querySQL, args...).Scan(&reports).Error

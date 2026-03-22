@@ -101,7 +101,11 @@ func (r *blogRepository) GetAll(query blog.GetBlogsQuery) ([]blog.Blog, int64, e
 
 	// Apply pagination
 	offset := (query.Page - 1) * query.Limit
-	db = db.Order("created_at DESC").Offset(offset).Limit(query.Limit)
+	orderClause := "created_at DESC"
+	if query.SortBy != "" {
+		orderClause = query.SortBy
+	}
+	db = db.Order(orderClause).Offset(offset).Limit(query.Limit)
 
 	// Fetch blogs with author and category details
 	if err := db.Preload("Author").Preload("Category").Find(&blogs).Error; err != nil {
