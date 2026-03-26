@@ -6,17 +6,20 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/healthcare-market-research/backend/internal/domain/audit"
 	"github.com/healthcare-market-research/backend/internal/domain/press_release"
+	"github.com/healthcare-market-research/backend/internal/middleware"
 	"github.com/healthcare-market-research/backend/internal/service"
 	"github.com/healthcare-market-research/backend/pkg/response"
 )
 
 type PressReleaseHandler struct {
-	service service.PressReleaseService
+	service      service.PressReleaseService
+	auditService service.AuditService
 }
 
-func NewPressReleaseHandler(service service.PressReleaseService) *PressReleaseHandler {
-	return &PressReleaseHandler{service: service}
+func NewPressReleaseHandler(service service.PressReleaseService, auditService service.AuditService) *PressReleaseHandler {
+	return &PressReleaseHandler{service: service, auditService: auditService}
 }
 
 // GetByCategorySlug godoc
@@ -80,6 +83,13 @@ func (h *PressReleaseHandler) Create(c *fiber.Ctx) error {
 	if err != nil {
 		return response.BadRequest(c, err.Error())
 	}
+
+	// Audit log
+	auditCtx := middleware.GetAuditContext(c)
+	auditEntry := middleware.NewAuditEntry(auditCtx, audit.ActionPressReleaseCreate)
+	auditEntry.EntityType = audit.EntityPressRelease
+	auditEntry.EntityID = &pr.ID
+	h.auditService.LogAsync(auditEntry)
 
 	return c.Status(fiber.StatusCreated).JSON(press_release.PressReleaseResponse{PressRelease: *pr})
 }
@@ -249,6 +259,14 @@ func (h *PressReleaseHandler) Update(c *fiber.Ctx) error {
 		return response.BadRequest(c, err.Error())
 	}
 
+	// Audit log
+	auditCtx := middleware.GetAuditContext(c)
+	auditEntry := middleware.NewAuditEntry(auditCtx, audit.ActionPressReleaseUpdate)
+	auditEntry.EntityType = audit.EntityPressRelease
+	entityID := uint(id)
+	auditEntry.EntityID = &entityID
+	h.auditService.LogAsync(auditEntry)
+
 	return c.JSON(press_release.PressReleaseResponse{PressRelease: *pr})
 }
 
@@ -281,6 +299,14 @@ func (h *PressReleaseHandler) Delete(c *fiber.Ctx) error {
 		}
 		return response.InternalError(c, "Failed to delete press release")
 	}
+
+	// Audit log
+	auditCtx := middleware.GetAuditContext(c)
+	auditEntry := middleware.NewAuditEntry(auditCtx, audit.ActionPressReleaseDelete)
+	auditEntry.EntityType = audit.EntityPressRelease
+	entityID := uint(id)
+	auditEntry.EntityID = &entityID
+	h.auditService.LogAsync(auditEntry)
 
 	return c.SendStatus(fiber.StatusNoContent)
 }
@@ -350,6 +376,14 @@ func (h *PressReleaseHandler) Publish(c *fiber.Ctx) error {
 		return response.BadRequest(c, err.Error())
 	}
 
+	// Audit log
+	auditCtx := middleware.GetAuditContext(c)
+	auditEntry := middleware.NewAuditEntry(auditCtx, audit.ActionPressReleasePublish)
+	auditEntry.EntityType = audit.EntityPressRelease
+	entityID := uint(id)
+	auditEntry.EntityID = &entityID
+	h.auditService.LogAsync(auditEntry)
+
 	return c.JSON(press_release.PressReleaseResponse{PressRelease: *pr})
 }
 
@@ -417,6 +451,14 @@ func (h *PressReleaseHandler) SoftDelete(c *fiber.Ctx) error {
 		return response.InternalError(c, "Failed to soft delete press release")
 	}
 
+	// Audit log
+	auditCtx := middleware.GetAuditContext(c)
+	auditEntry := middleware.NewAuditEntry(auditCtx, audit.ActionPressReleaseDelete)
+	auditEntry.EntityType = audit.EntityPressRelease
+	entityID := uint(id)
+	auditEntry.EntityID = &entityID
+	h.auditService.LogAsync(auditEntry)
+
 	return response.Success(c, "Press release moved to trash successfully")
 }
 
@@ -446,6 +488,14 @@ func (h *PressReleaseHandler) Restore(c *fiber.Ctx) error {
 	if err := h.service.Restore(uint(id)); err != nil {
 		return response.InternalError(c, "Failed to restore press release")
 	}
+
+	// Audit log
+	auditCtx := middleware.GetAuditContext(c)
+	auditEntry := middleware.NewAuditEntry(auditCtx, audit.ActionPressReleaseUpdate)
+	auditEntry.EntityType = audit.EntityPressRelease
+	entityID := uint(id)
+	auditEntry.EntityID = &entityID
+	h.auditService.LogAsync(auditEntry)
 
 	return response.Success(c, "Press release restored successfully")
 }

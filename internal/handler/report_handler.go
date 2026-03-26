@@ -7,22 +7,26 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/healthcare-market-research/backend/internal/domain/audit"
 	"github.com/healthcare-market-research/backend/internal/domain/report"
 	"github.com/healthcare-market-research/backend/internal/domain/user"
+	"github.com/healthcare-market-research/backend/internal/middleware"
 	"github.com/healthcare-market-research/backend/internal/repository"
 	"github.com/healthcare-market-research/backend/internal/service"
 	"github.com/healthcare-market-research/backend/pkg/response"
 )
 
 type ReportHandler struct {
-	service    service.ReportService
-	authorRepo repository.AuthorRepository
+	service      service.ReportService
+	authorRepo   repository.AuthorRepository
+	auditService service.AuditService
 }
 
-func NewReportHandler(service service.ReportService, authorRepo repository.AuthorRepository) *ReportHandler {
+func NewReportHandler(service service.ReportService, authorRepo repository.AuthorRepository, auditService service.AuditService) *ReportHandler {
 	return &ReportHandler{
-		service:    service,
-		authorRepo: authorRepo,
+		service:      service,
+		authorRepo:   authorRepo,
+		auditService: auditService,
 	}
 }
 
@@ -483,6 +487,13 @@ func (h *ReportHandler) Create(c *fiber.Ctx) error {
 		return response.InternalError(c, "Failed to create report")
 	}
 
+	// Audit log
+	auditCtx := middleware.GetAuditContext(c)
+	entry := middleware.NewAuditEntry(auditCtx, audit.ActionReportCreate)
+	entry.EntityType = audit.EntityReport
+	entry.EntityID = &req.ID
+	h.auditService.LogAsync(entry)
+
 	return c.Status(fiber.StatusCreated).JSON(response.Response{
 		Success: true,
 		Data:    req,
@@ -551,6 +562,14 @@ func (h *ReportHandler) Update(c *fiber.Ctx) error {
 		return response.InternalError(c, "Failed to update report")
 	}
 
+	// Audit log
+	auditCtx := middleware.GetAuditContext(c)
+	auditEntry := middleware.NewAuditEntry(auditCtx, audit.ActionReportUpdate)
+	auditEntry.EntityType = audit.EntityReport
+	entityID := uint(id)
+	auditEntry.EntityID = &entityID
+	h.auditService.LogAsync(auditEntry)
+
 	return response.Success(c, req)
 }
 
@@ -581,6 +600,14 @@ func (h *ReportHandler) Delete(c *fiber.Ctx) error {
 		}
 		return response.InternalError(c, "Failed to delete report")
 	}
+
+	// Audit log
+	auditCtx := middleware.GetAuditContext(c)
+	auditEntry := middleware.NewAuditEntry(auditCtx, audit.ActionReportDelete)
+	auditEntry.EntityType = audit.EntityReport
+	entityID := uint(id)
+	auditEntry.EntityID = &entityID
+	h.auditService.LogAsync(auditEntry)
 
 	return response.Success(c, fiber.Map{
 		"message": "Report permanently deleted successfully",
@@ -615,6 +642,14 @@ func (h *ReportHandler) SoftDelete(c *fiber.Ctx) error {
 		return response.InternalError(c, "Failed to soft delete report")
 	}
 
+	// Audit log
+	auditCtx := middleware.GetAuditContext(c)
+	auditEntry := middleware.NewAuditEntry(auditCtx, audit.ActionReportDelete)
+	auditEntry.EntityType = audit.EntityReport
+	entityID := uint(id)
+	auditEntry.EntityID = &entityID
+	h.auditService.LogAsync(auditEntry)
+
 	return response.Success(c, fiber.Map{
 		"message": "Report soft deleted successfully",
 	})
@@ -647,6 +682,14 @@ func (h *ReportHandler) Restore(c *fiber.Ctx) error {
 		}
 		return response.InternalError(c, "Failed to restore report")
 	}
+
+	// Audit log
+	auditCtx := middleware.GetAuditContext(c)
+	auditEntry := middleware.NewAuditEntry(auditCtx, audit.ActionReportUpdate)
+	auditEntry.EntityType = audit.EntityReport
+	entityID := uint(id)
+	auditEntry.EntityID = &entityID
+	h.auditService.LogAsync(auditEntry)
 
 	return response.Success(c, fiber.Map{
 		"message": "Report restored successfully",

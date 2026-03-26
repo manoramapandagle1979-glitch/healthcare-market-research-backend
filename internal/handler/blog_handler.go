@@ -6,17 +6,20 @@ import (
 	"time"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/healthcare-market-research/backend/internal/domain/audit"
 	"github.com/healthcare-market-research/backend/internal/domain/blog"
+	"github.com/healthcare-market-research/backend/internal/middleware"
 	"github.com/healthcare-market-research/backend/internal/service"
 	"github.com/healthcare-market-research/backend/pkg/response"
 )
 
 type BlogHandler struct {
-	service service.BlogService
+	service      service.BlogService
+	auditService service.AuditService
 }
 
-func NewBlogHandler(service service.BlogService) *BlogHandler {
-	return &BlogHandler{service: service}
+func NewBlogHandler(service service.BlogService, auditService service.AuditService) *BlogHandler {
+	return &BlogHandler{service: service, auditService: auditService}
 }
 
 // GetByCategorySlug godoc
@@ -80,6 +83,13 @@ func (h *BlogHandler) Create(c *fiber.Ctx) error {
 	if err != nil {
 		return response.BadRequest(c, err.Error())
 	}
+
+	// Audit log
+	auditCtx := middleware.GetAuditContext(c)
+	auditEntry := middleware.NewAuditEntry(auditCtx, audit.ActionBlogCreate)
+	auditEntry.EntityType = audit.EntityBlog
+	auditEntry.EntityID = &b.ID
+	h.auditService.LogAsync(auditEntry)
 
 	return c.Status(fiber.StatusCreated).JSON(blog.BlogResponse{Blog: *b})
 }
@@ -249,6 +259,14 @@ func (h *BlogHandler) Update(c *fiber.Ctx) error {
 		return response.BadRequest(c, err.Error())
 	}
 
+	// Audit log
+	auditCtx := middleware.GetAuditContext(c)
+	auditEntry := middleware.NewAuditEntry(auditCtx, audit.ActionBlogUpdate)
+	auditEntry.EntityType = audit.EntityBlog
+	entityID := uint(id)
+	auditEntry.EntityID = &entityID
+	h.auditService.LogAsync(auditEntry)
+
 	return c.JSON(blog.BlogResponse{Blog: *b})
 }
 
@@ -281,6 +299,14 @@ func (h *BlogHandler) Delete(c *fiber.Ctx) error {
 		}
 		return response.InternalError(c, "Failed to delete blog")
 	}
+
+	// Audit log
+	auditCtx := middleware.GetAuditContext(c)
+	auditEntry := middleware.NewAuditEntry(auditCtx, audit.ActionBlogDelete)
+	auditEntry.EntityType = audit.EntityBlog
+	entityID := uint(id)
+	auditEntry.EntityID = &entityID
+	h.auditService.LogAsync(auditEntry)
 
 	return c.SendStatus(fiber.StatusNoContent)
 }
@@ -350,6 +376,14 @@ func (h *BlogHandler) Publish(c *fiber.Ctx) error {
 		return response.BadRequest(c, err.Error())
 	}
 
+	// Audit log
+	auditCtx := middleware.GetAuditContext(c)
+	auditEntry := middleware.NewAuditEntry(auditCtx, audit.ActionBlogPublish)
+	auditEntry.EntityType = audit.EntityBlog
+	entityID := uint(id)
+	auditEntry.EntityID = &entityID
+	h.auditService.LogAsync(auditEntry)
+
 	return c.JSON(blog.BlogResponse{Blog: *b})
 }
 
@@ -417,6 +451,14 @@ func (h *BlogHandler) SoftDelete(c *fiber.Ctx) error {
 		return response.InternalError(c, "Failed to soft delete blog")
 	}
 
+	// Audit log
+	auditCtx := middleware.GetAuditContext(c)
+	auditEntry := middleware.NewAuditEntry(auditCtx, audit.ActionBlogDelete)
+	auditEntry.EntityType = audit.EntityBlog
+	entityID := uint(id)
+	auditEntry.EntityID = &entityID
+	h.auditService.LogAsync(auditEntry)
+
 	return response.Success(c, "Blog moved to trash successfully")
 }
 
@@ -446,6 +488,14 @@ func (h *BlogHandler) Restore(c *fiber.Ctx) error {
 	if err := h.service.Restore(uint(id)); err != nil {
 		return response.InternalError(c, "Failed to restore blog")
 	}
+
+	// Audit log
+	auditCtx := middleware.GetAuditContext(c)
+	auditEntry := middleware.NewAuditEntry(auditCtx, audit.ActionBlogUpdate)
+	auditEntry.EntityType = audit.EntityBlog
+	entityID := uint(id)
+	auditEntry.EntityID = &entityID
+	h.auditService.LogAsync(auditEntry)
 
 	return response.Success(c, "Blog restored successfully")
 }

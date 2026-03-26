@@ -70,6 +70,10 @@ func (h *AuditHandler) GetAll(c *fiber.Ctx) error {
 		filters.Action = action
 	}
 
+	if actionPrefix := c.Query("action_prefix"); actionPrefix != "" {
+		filters.ActionPrefix = actionPrefix
+	}
+
 	if entityType := c.Query("entity_type"); entityType != "" {
 		filters.EntityType = entityType
 	}

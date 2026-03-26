@@ -116,16 +116,6 @@ func (h *AuthHandler) Refresh(c *fiber.Ctx) error {
 		return response.InternalError(c, "Failed to refresh token")
 	}
 
-	// Log successful token refresh
-	auditCtx := middleware.GetAuditContext(c)
-	entry := middleware.NewAuditEntry(auditCtx, audit.ActionTokenRefresh)
-	entry.UserID = &refreshResp.User.ID
-	entry.UserEmail = refreshResp.User.Email
-	entry.UserRole = refreshResp.User.Role
-	entry.EntityType = audit.EntityUser
-	entry.EntityID = &refreshResp.User.ID
-	h.auditService.LogAsync(entry)
-
 	return response.Success(c, refreshResp)
 }
 

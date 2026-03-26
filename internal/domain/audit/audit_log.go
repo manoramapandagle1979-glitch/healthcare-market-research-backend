@@ -36,14 +36,28 @@ const (
 	ActionAuthorCreate = "author.create"
 	ActionAuthorUpdate = "author.update"
 	ActionAuthorDelete = "author.delete"
+
+	// Blog actions
+	ActionBlogCreate  = "blog.create"
+	ActionBlogUpdate  = "blog.update"
+	ActionBlogDelete  = "blog.delete"
+	ActionBlogPublish = "blog.publish"
+
+	// Press Release actions
+	ActionPressReleaseCreate  = "press_release.create"
+	ActionPressReleaseUpdate  = "press_release.update"
+	ActionPressReleaseDelete  = "press_release.delete"
+	ActionPressReleasePublish = "press_release.publish"
 )
 
 // EntityType constants
 const (
-	EntityUser     = "user"
-	EntityReport   = "report"
-	EntityCategory = "category"
-	EntityAuthor   = "author"
+	EntityUser         = "user"
+	EntityReport       = "report"
+	EntityCategory     = "category"
+	EntityAuthor       = "author"
+	EntityBlog         = "blog"
+	EntityPressRelease = "press_release"
 )
 
 // Status constants
@@ -106,16 +120,17 @@ func (AuditLog) TableName() string {
 
 // AuditLogFilters for querying audit logs
 type AuditLogFilters struct {
-	UserID     *uint
-	Action     string
-	EntityType string
-	EntityID   *uint
-	Status     string
-	StartDate  *time.Time
-	EndDate    *time.Time
-	IPAddress  string
-	Page       int
-	Limit      int
+	UserID       *uint
+	Action       string
+	ActionPrefix string // Comma-separated prefixes, e.g. "auth." or "blog.,press_release."
+	EntityType   string
+	EntityID     *uint
+	Status       string
+	StartDate    *time.Time
+	EndDate      *time.Time
+	IPAddress    string
+	Page         int
+	Limit        int
 }
 
 // AuditLogResponse for API responses

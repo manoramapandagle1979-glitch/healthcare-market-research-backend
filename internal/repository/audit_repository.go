@@ -1,6 +1,8 @@
 package repository
 
 import (
+	"strings"
+
 	"github.com/healthcare-market-research/backend/internal/domain/audit"
 	"gorm.io/gorm"
 )
@@ -49,6 +51,18 @@ func (r *auditRepository) GetAll(filters audit.AuditLogFilters) ([]audit.AuditLo
 	}
 	if filters.Action != "" {
 		query = query.Where("action = ?", filters.Action)
+	}
+	if filters.ActionPrefix != "" {
+		prefixes := strings.Split(filters.ActionPrefix, ",")
+		if len(prefixes) == 1 {
+			query = query.Where("action LIKE ?", strings.TrimSpace(prefixes[0])+"%")
+		} else {
+			orCond := r.db.Where("action LIKE ?", strings.TrimSpace(prefixes[0])+"%")
+			for _, p := range prefixes[1:] {
+				orCond = orCond.Or("action LIKE ?", strings.TrimSpace(p)+"%")
+			}
+			query = query.Where(orCond)
+		}
 	}
 	if filters.EntityType != "" {
 		query = query.Where("entity_type = ?", filters.EntityType)
