@@ -369,7 +369,7 @@ func (s *smtpEmailService) SendOrderAdminNotification(o *order.Order) error {
 		o.ReportTitle,
 		o.Currency,
 		o.Amount,
-		o.PaypalOrderID,
+		derefStr(o.PaypalOrderID),
 		o.PaypalCaptureID,
 		o.CreatedAt.Format(time.RFC1123),
 		o.ID,
@@ -383,6 +383,13 @@ func (s *smtpEmailService) SendOrderAdminNotification(o *order.Order) error {
 
 	d := gomail.NewDialer(s.cfg.Host, s.cfg.Port, s.cfg.User, s.cfg.Password)
 	return d.DialAndSend(m)
+}
+
+func derefStr(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
 }
 
 func strVal(v interface{}) string {

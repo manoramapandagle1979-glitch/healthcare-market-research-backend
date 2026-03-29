@@ -73,6 +73,35 @@ func (h *OrderHandler) Capture(c *fiber.Ctx) error {
 	return response.Success(c, result)
 }
 
+// StripeCapture godoc
+// @Summary Confirm Stripe payment for an order
+// @Description Verify the Stripe PaymentIntent succeeded and mark the order as paid
+// @Tags Orders
+// @Accept json
+// @Produce json
+// @Param id path int true "Order ID"
+// @Success 200 {object} order.ConfirmStripeOrderResponse "Payment confirmed"
+// @Failure 400 {object} response.Response{error=string} "Bad request"
+// @Failure 404 {object} response.Response{error=string} "Order not found"
+// @Router /api/v1/orders/{id}/stripe-capture [post]
+func (h *OrderHandler) StripeCapture(c *fiber.Ctx) error {
+	idStr := c.Params("id")
+	id, err := strconv.ParseUint(idStr, 10, 64)
+	if err != nil {
+		return response.BadRequest(c, "Invalid order ID")
+	}
+
+	result, err := h.service.CaptureStripeOrder(uint(id))
+	if err != nil {
+		if err.Error() == "order not found" {
+			return response.NotFound(c, "Order not found")
+		}
+		return response.BadRequest(c, err.Error())
+	}
+
+	return response.Success(c, result)
+}
+
 // GetAll godoc
 // @Summary List all orders
 // @Description Get paginated list of orders with optional filtering

@@ -17,12 +17,18 @@ type Config struct {
 	Cloudflare  CloudflareConfig
 	Email       EmailConfig
 	PayPal      PayPalConfig
+	Stripe      StripeConfig
 }
 
 type PayPalConfig struct {
 	ClientID     string // PAYPAL_CLIENT_ID
 	ClientSecret string // PAYPAL_CLIENT_SECRET
 	Mode         string // PAYPAL_MODE: "sandbox" or "live"
+}
+
+type StripeConfig struct {
+	SecretKey     string // STRIPE_SECRET_KEY
+	WebhookSecret string // STRIPE_WEBHOOK_SECRET
 }
 
 type EmailConfig struct {
@@ -142,6 +148,10 @@ func Load() *Config {
 			ClientID:     getEnv("PAYPAL_CLIENT_ID", ""),
 			ClientSecret: getEnv("PAYPAL_CLIENT_SECRET", ""),
 			Mode:         getEnv("PAYPAL_MODE", "sandbox"),
+		},
+		Stripe: StripeConfig{
+			SecretKey:     getEnv("STRIPE_SECRET_KEY", ""),
+			WebhookSecret: getEnv("STRIPE_WEBHOOK_SECRET", ""),
 		},
 	}
 }

@@ -24,6 +24,7 @@ import (
 	"github.com/healthcare-market-research/backend/pkg/email"
 	"github.com/healthcare-market-research/backend/pkg/logger"
 	"github.com/healthcare-market-research/backend/pkg/paypal"
+	"github.com/healthcare-market-research/backend/pkg/stripe"
 	"github.com/joho/godotenv"
 
 	_ "github.com/healthcare-market-research/backend/docs"
@@ -141,7 +142,8 @@ func main() {
 	emailService := email.NewSMTPEmailService(&cfg.Email)
 	formService := service.NewFormService(formRepo, emailService)
 	paypalClient := paypal.NewClient(&cfg.PayPal)
-	orderService := service.NewOrderService(orderRepo, reportRepo, paypalClient, emailService)
+	stripeClient := stripe.NewClient(&cfg.Stripe)
+	orderService := service.NewOrderService(orderRepo, reportRepo, paypalClient, stripeClient, emailService)
 	reportImageService := service.NewReportImageService(reportImageRepo, reportRepo, cloudflareService)
 	blogService := service.NewBlogService(blogRepo)
 	pressReleaseService := service.NewPressReleaseService(pressReleaseRepo)
@@ -176,6 +178,7 @@ func main() {
 	dashboardHandler := handler.NewDashboardHandler(dashboardService)
 	redirectHandler := handler.NewRedirectHandler(redirectService)
 	orderHandler := handler.NewOrderHandler(orderService)
+	webhookHandler := handler.NewWebhookHandler(orderService)
 
 	// Initialize Fiber app
 	app := fiber.New(fiber.Config{
@@ -340,9 +343,14 @@ func main() {
 	redirectsGroup.Delete("/bulk", middleware.RequireRole("admin"), redirectHandler.BulkDelete)
 
 	// Order routes
+	// Stripe webhook — must be registered before body-parser middleware touches it.
+	// Fiber v2 makes the raw body available via c.Body() so no special handling needed.
+	v1.Post("/webhooks/stripe", webhookHandler.StripeWebhook)
+
 	// Public endpoints — create order + capture payment (no auth required)
 	v1.Post("/orders", orderHandler.Create)
 	v1.Post("/orders/:id/capture", orderHandler.Capture)
+	v1.Post("/orders/:id/stripe-capture", orderHandler.StripeCapture)
 
 	// Protected endpoints — admin/editor only
 	ordersGroup := v1.Group("/orders", middleware.RequireAuth(authService), middleware.RequireRole("admin", "editor"))

@@ -12,8 +12,10 @@ type OrderRepository interface {
 	Create(o *order.Order) error
 	GetByID(id uint) (*order.Order, error)
 	GetByPaypalOrderID(paypalOrderID string) (*order.Order, error)
+	GetByStripePaymentIntentID(piID string) (*order.Order, error)
 	GetAll(query order.GetOrdersQuery) ([]order.Order, int64, error)
 	UpdateStatus(id uint, status order.OrderStatus, captureID, adminNotes string, fulfilledBy *uint) error
+	UpdateStripeCapture(id uint, piID string) error
 	GetStats() (*order.OrderStats, error)
 }
 
@@ -41,6 +43,15 @@ func (r *orderRepository) GetByID(id uint) (*order.Order, error) {
 func (r *orderRepository) GetByPaypalOrderID(paypalOrderID string) (*order.Order, error) {
 	var o order.Order
 	err := r.db.Where("paypal_order_id = ?", paypalOrderID).First(&o).Error
+	if err != nil {
+		return nil, err
+	}
+	return &o, nil
+}
+
+func (r *orderRepository) GetByStripePaymentIntentID(piID string) (*order.Order, error) {
+	var o order.Order
+	err := r.db.Where("stripe_payment_intent_id = ?", piID).First(&o).Error
 	if err != nil {
 		return nil, err
 	}
@@ -123,6 +134,20 @@ func (r *orderRepository) UpdateStatus(id uint, status order.OrderStatus, captur
 	}
 
 	result := r.db.Model(&order.Order{}).Where("id = ?", id).Updates(updates)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
+}
+
+func (r *orderRepository) UpdateStripeCapture(id uint, piID string) error {
+	result := r.db.Model(&order.Order{}).Where("id = ?", id).Updates(map[string]interface{}{
+		"status":                  order.StatusPaymentReceived,
+		"stripe_payment_intent_id": piID,
+	})
 	if result.Error != nil {
 		return result.Error
 	}
