@@ -19,6 +19,35 @@ const (
 	StatusPublished BlogStatus = "published"
 )
 
+// InternalLinkEntry represents a single internal link configuration
+type InternalLinkEntry struct {
+	Keyword     string `json:"keyword"`
+	TargetID    int    `json:"targetId"`
+	TargetTitle string `json:"targetTitle"`
+	TargetType  string `json:"targetType"` // "report", "blog", "press-release"
+	TargetURL   string `json:"targetUrl"`
+	LinkedCount int    `json:"linkedCount"`
+}
+
+// InternalLinks is a slice of InternalLinkEntry with JSONB support
+type InternalLinks []InternalLinkEntry
+
+func (il InternalLinks) Value() (driver.Value, error) {
+	return json.Marshal(il)
+}
+
+func (il *InternalLinks) Scan(value interface{}) error {
+	if value == nil {
+		*il = InternalLinks{}
+		return nil
+	}
+	bytes, ok := value.([]byte)
+	if !ok {
+		return errors.New("type assertion to []byte failed")
+	}
+	return json.Unmarshal(bytes, &il)
+}
+
 // BlogMetadata contains SEO metadata for a blog post
 type BlogMetadata struct {
 	MetaTitle       string   `json:"metaTitle,omitempty"`
@@ -59,8 +88,9 @@ type Blog struct {
 	PublishDate             *time.Time `json:"publishDate,omitempty" gorm:"index"`
 	ScheduledPublishEnabled bool       `json:"scheduledPublishEnabled" gorm:"default:false"`
 	Location                string     `json:"location,omitempty" gorm:"type:varchar(255)"`
-	Metadata    BlogMetadata   `json:"metadata" gorm:"type:jsonb"`
-	ReviewedBy  *uint          `json:"reviewedBy,omitempty" gorm:"index"`
+	Metadata      BlogMetadata   `json:"metadata" gorm:"type:jsonb"`
+	InternalLinks InternalLinks  `json:"internalLinks,omitempty" gorm:"type:jsonb"`
+	ReviewedBy  *uint            `json:"reviewedBy,omitempty" gorm:"index"`
 	ReviewedAt  *time.Time     `json:"reviewedAt,omitempty"`
 	DeletedAt   *time.Time     `json:"deletedAt,omitempty" gorm:"index"`
 	CreatedAt   time.Time      `json:"createdAt"`
@@ -97,8 +127,9 @@ type UpdateBlogRequest struct {
 	AuthorID    *uint         `json:"authorId,omitempty"`
 	Status      *BlogStatus   `json:"status,omitempty" validate:"omitempty,oneof=draft review published"`
 	PublishDate *string       `json:"publishDate,omitempty"`
-	Location    *string       `json:"location,omitempty"`
-	Metadata    *BlogMetadata `json:"metadata,omitempty"`
+	Location      *string        `json:"location,omitempty"`
+	Metadata      *BlogMetadata  `json:"metadata,omitempty"`
+	InternalLinks *InternalLinks `json:"internalLinks,omitempty"`
 }
 
 // GetBlogsQuery represents query parameters for filtering blogs

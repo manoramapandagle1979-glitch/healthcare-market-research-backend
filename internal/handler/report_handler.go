@@ -760,6 +760,15 @@ func (h *ReportHandler) CancelScheduledPublish(c *fiber.Ctx) error {
 	return c.JSON(fiber.Map{"report": r})
 }
 
+// GetLinkSuggestions returns a lightweight list of published reports for internal linking
+func (h *ReportHandler) GetLinkSuggestions(c *fiber.Ctx) error {
+	items, err := h.service.GetLinkSuggestions()
+	if err != nil {
+		return response.InternalError(c, "Failed to fetch link suggestions")
+	}
+	return response.Success(c, items)
+}
+
 // GetSitemap godoc
 // @Summary Get published report slugs for sitemap generation
 // @Description Returns paginated slugs and dates for published reports (up to 1000 per page). Intended for sitemap generation only.

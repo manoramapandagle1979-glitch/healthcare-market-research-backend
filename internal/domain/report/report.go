@@ -151,6 +151,43 @@ type UserReference struct {
 	Email string `json:"email"`
 }
 
+// LinkSuggestionItem is a lightweight DTO for internal link suggestions
+type LinkSuggestionItem struct {
+	ID           uint   `json:"id"`
+	Title        string `json:"title"`
+	Slug         string `json:"slug"`
+	MetaKeywords string `json:"meta_keywords"`
+}
+
+// InternalLinkEntry represents a single internal link configuration
+type InternalLinkEntry struct {
+	Keyword     string `json:"keyword"`
+	TargetID    int    `json:"targetId"`
+	TargetTitle string `json:"targetTitle"`
+	TargetType  string `json:"targetType"` // "report", "blog", "press-release"
+	TargetURL   string `json:"targetUrl"`
+	LinkedCount int    `json:"linkedCount"`
+}
+
+// InternalLinks is a slice of InternalLinkEntry with JSONB support
+type InternalLinks []InternalLinkEntry
+
+func (il InternalLinks) Value() (driver.Value, error) {
+	return json.Marshal(il)
+}
+
+func (il *InternalLinks) Scan(value interface{}) error {
+	if value == nil {
+		*il = InternalLinks{}
+		return nil
+	}
+	bytes, ok := value.([]byte)
+	if !ok {
+		return errors.New("type assertion to []byte failed")
+	}
+	return json.Unmarshal(bytes, &il)
+}
+
 type Report struct {
 	ID              uint            `json:"id" gorm:"primaryKey"`
 	CategoryID      uint            `json:"category_id" gorm:"index;not null"`
@@ -196,6 +233,9 @@ type Report struct {
 	MetaTitle       string          `json:"meta_title,omitempty" gorm:"type:varchar(255)"`
 	MetaDescription string          `json:"meta_description,omitempty" gorm:"type:varchar(500)"`
 	MetaKeywords    string          `json:"meta_keywords,omitempty" gorm:"type:varchar(500)"`
+
+	// Internal links configuration
+	InternalLinks   InternalLinks   `json:"internal_links,omitempty" gorm:"type:jsonb"`
 
 	// User tracking (admin metadata)
 	CreatedBy         *uint          `json:"created_by,omitempty" gorm:"index"`

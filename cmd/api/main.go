@@ -230,6 +230,7 @@ func main() {
 
 	// Report routes (public read, protected write)
 	v1.Get("/reports", reportHandler.GetAll)
+	v1.Get("/reports/link-suggestions", middleware.RequireAuth(authService), middleware.RequireRole("admin", "editor"), reportHandler.GetLinkSuggestions)
 	v1.Get("/reports/author/:id", reportHandler.GetByAuthorID)
 	v1.Get("/reports/:slug", reportHandler.GetBySlug)
 	v1.Get("/search", reportHandler.Search)

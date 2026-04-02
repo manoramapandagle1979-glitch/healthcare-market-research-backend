@@ -219,6 +219,10 @@ func (s *pressReleaseService) Update(id uint, req *press_release.UpdatePressRele
 		updates["metadata"] = *req.Metadata
 	}
 
+	if req.InternalLinks != nil {
+		updates["internal_links"] = *req.InternalLinks
+	}
+
 	// Update press release
 	if err := s.repo.Update(id, updates); err != nil {
 		return nil, err

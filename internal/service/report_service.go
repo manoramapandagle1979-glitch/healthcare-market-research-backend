@@ -26,6 +26,7 @@ type ReportService interface {
 	Restore(id uint) error
 	SchedulePublish(id uint, publishDate time.Time) (*report.Report, error)
 	CancelScheduledPublish(id uint) (*report.Report, error)
+	GetLinkSuggestions() ([]report.LinkSuggestionItem, error)
 }
 
 type reportService struct {
@@ -276,4 +277,8 @@ func (s *reportService) CancelScheduledPublish(id uint) (*report.Report, error) 
 	}
 
 	return s.repo.GetByID(id)
+}
+
+func (s *reportService) GetLinkSuggestions() ([]report.LinkSuggestionItem, error) {
+	return s.repo.GetLinkSuggestions()
 }

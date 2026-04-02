@@ -56,6 +56,8 @@ type ReportRepository interface {
 	PublishScheduled(now time.Time) error
 	SchedulePublish(id uint, publishDate time.Time) error
 	CancelScheduledPublish(id uint) error
+	// Internal linking
+	GetLinkSuggestions() ([]report.LinkSuggestionItem, error)
 }
 
 type reportRepository struct {
@@ -484,4 +486,15 @@ func (r *reportRepository) CancelScheduledPublish(id uint) error {
 	return r.db.Model(&report.Report{}).
 		Where("id = ?", id).
 		Update("scheduled_publish_enabled", false).Error
+}
+
+func (r *reportRepository) GetLinkSuggestions() ([]report.LinkSuggestionItem, error) {
+	var items []report.LinkSuggestionItem
+	err := r.db.Raw(`
+		SELECT id, title, slug, meta_keywords
+		FROM reports
+		WHERE status = 'published' AND deleted_at IS NULL
+		ORDER BY title
+	`).Scan(&items).Error
+	return items, err
 }

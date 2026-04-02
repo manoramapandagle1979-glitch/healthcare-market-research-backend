@@ -214,6 +214,10 @@ func (s *blogService) Update(id uint, req *blog.UpdateBlogRequest) (*blog.Blog, 
 		updates["metadata"] = *req.Metadata
 	}
 
+	if req.InternalLinks != nil {
+		updates["internal_links"] = *req.InternalLinks
+	}
+
 	// Update blog
 	if err := s.repo.Update(id, updates); err != nil {
 		return nil, err
