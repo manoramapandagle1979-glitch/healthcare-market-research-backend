@@ -36,6 +36,9 @@ func (s *smtpEmailService) SendFormNotification(submission *form.FormSubmission)
 	adminMsg := gomail.NewMessage()
 	adminMsg.SetHeader("From", s.cfg.From)
 	adminMsg.SetHeader("To", s.cfg.NotifyTo)
+	if s.cfg.CC != "" {
+		adminMsg.SetHeader("Cc", s.cfg.CC)
+	}
 	adminMsg.SetHeader("Subject", adminSubject)
 	adminMsg.SetBody("text/html", adminBody)
 
@@ -53,6 +56,9 @@ func (s *smtpEmailService) SendFormNotification(submission *form.FormSubmission)
 	clientMsg := gomail.NewMessage()
 	clientMsg.SetHeader("From", s.cfg.From)
 	clientMsg.SetHeader("To", clientEmail)
+	if s.cfg.CC != "" {
+		clientMsg.SetHeader("Cc", s.cfg.CC)
+	}
 	clientMsg.SetHeader("Subject", clientSubject)
 	clientMsg.SetBody("text/html", clientBody)
 
@@ -323,6 +329,9 @@ func (s *smtpEmailService) SendOrderConfirmation(o *order.Order) error {
 	m := gomail.NewMessage()
 	m.SetHeader("From", s.cfg.From)
 	m.SetHeader("To", o.CustomerEmail)
+	if s.cfg.CC != "" {
+		m.SetHeader("Cc", s.cfg.CC)
+	}
 	m.SetHeader("Subject", subject)
 	m.SetBody("text/html", body)
 
@@ -378,6 +387,9 @@ func (s *smtpEmailService) SendOrderAdminNotification(o *order.Order) error {
 	m := gomail.NewMessage()
 	m.SetHeader("From", s.cfg.From)
 	m.SetHeader("To", s.cfg.NotifyTo)
+	if s.cfg.CC != "" {
+		m.SetHeader("Cc", s.cfg.CC)
+	}
 	m.SetHeader("Subject", subject)
 	m.SetBody("text/html", body)
 
