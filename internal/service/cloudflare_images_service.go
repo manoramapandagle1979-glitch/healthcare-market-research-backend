@@ -1,9 +1,11 @@
 package service
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"mime/multipart"
+	"path/filepath"
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -11,6 +13,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/google/uuid"
 	"github.com/healthcare-market-research/backend/internal/config"
+	"github.com/healthcare-market-research/backend/pkg/imageutil"
 )
 
 // CloudflareImagesService handles interactions with Cloudflare R2 (S3-compatible)
@@ -42,8 +45,8 @@ func NewCloudflareImagesService(cfg *config.CloudflareConfig) CloudflareImagesSe
 	}
 }
 
-// Upload uploads a file to Cloudflare R2 and returns its public CDN URL.
-// Object key format: <uuid>-<original-filename>
+// Upload converts an image to WebP, uploads it to Cloudflare R2, and returns its public CDN URL.
+// Object key format: <uuid>-<basename>.webp
 func (s *cloudflareImagesService) Upload(file *multipart.FileHeader, metadata map[string]string) (string, error) {
 	src, err := file.Open()
 	if err != nil {
@@ -51,15 +54,20 @@ func (s *cloudflareImagesService) Upload(file *multipart.FileHeader, metadata ma
 	}
 	defer src.Close()
 
-	// objectKey := fmt.Sprintf("%s-%s", uuid.New().String(), file.Filename)
-	fmt.Println("%s-%s", uuid.New().String(), file.Filename)
-	objectKey := file.Filename
+	webpData, err := imageutil.ConvertToWebP(src)
+	if err != nil {
+		return "", fmt.Errorf("failed to convert image to webp: %w", err)
+	}
+
+	baseName := strings.TrimSuffix(file.Filename, filepath.Ext(file.Filename))
+	objectKey := fmt.Sprintf("%s-%s.webp", uuid.New().String(), baseName)
 
 	input := &s3.PutObjectInput{
-		Bucket:      aws.String(s.config.R2Bucket),
-		Key:         aws.String(objectKey),
-		Body:        src,
-		ContentType: aws.String(file.Header.Get("Content-Type")),
+		Bucket:        aws.String(s.config.R2Bucket),
+		Key:           aws.String(objectKey),
+		Body:          bytes.NewReader(webpData),
+		ContentType:   aws.String("image/webp"),
+		ContentLength: aws.Int64(int64(len(webpData))),
 	}
 
 	if _, err := s.s3Client.PutObject(context.Background(), input); err != nil {
