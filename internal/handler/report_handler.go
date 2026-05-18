@@ -279,6 +279,10 @@ func (h *ReportHandler) GetBySlug(c *fiber.Ctx) error {
 		return response.NotFound(c, "Report not found")
 	}
 
+	// Allow CDN/Cloudflare to cache public report responses for 10 minutes,
+	// with stale-while-revalidate so users never wait on a cold miss
+	c.Set("Cache-Control", "public, s-maxage=600, stale-while-revalidate=3600")
+
 	return response.Success(c, report)
 }
 

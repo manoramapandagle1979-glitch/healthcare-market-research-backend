@@ -54,8 +54,16 @@ func (s *reportService) GetByID(id uint) (*report.ReportWithRelations, error) {
 }
 
 func (s *reportService) GetBySlug(slug string) (*report.ReportWithRelations, error) {
-	// Always fetch fresh data from database (no caching)
-	return s.repo.GetBySlug(slug)
+	key := fmt.Sprintf("report:slug:%s", slug)
+	var result report.ReportWithRelations
+
+	err := cache.GetOrSet(key, &result, 10*time.Minute, func() (interface{}, error) {
+		return s.repo.GetBySlug(slug)
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &result, nil
 }
 
 func (s *reportService) GetByCategorySlug(categorySlug string, page, limit int) ([]report.Report, int64, error) {
@@ -225,16 +233,21 @@ func (s *reportService) SoftDelete(id uint) error {
 }
 
 func (s *reportService) Restore(id uint) error {
-	// Restore the report
-	err := s.repo.Restore(id)
+	// Get the report slug before restoring so we can invalidate the slug cache
+	existing, err := s.repo.GetByID(id)
 	if err != nil {
 		return err
 	}
 
-	// Invalidate caches to show restored report
+	if err := s.repo.Restore(id); err != nil {
+		return err
+	}
+
+	// Invalidate all relevant caches
 	cache.DeletePattern("reports:list:*")
 	cache.DeletePattern("reports:total")
 	cache.DeletePattern(fmt.Sprintf("reports:category:*"))
+	cache.Delete(fmt.Sprintf("report:slug:%s", existing.Slug))
 
 	return nil
 }
