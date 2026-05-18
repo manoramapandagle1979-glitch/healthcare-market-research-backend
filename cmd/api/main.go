@@ -130,6 +130,7 @@ func main() {
 	dashboardRepo := repository.NewDashboardRepository(db.DB)
 	redirectRepo := repository.NewRedirectRepository(db.DB)
 	orderRepo := repository.NewOrderRepository(db.DB)
+	imageRepo := repository.NewImageRepository(db.DB)
 
 	// Initialize services
 	userService := service.NewUserService(userRepo)
@@ -147,6 +148,7 @@ func main() {
 	reportImageService := service.NewReportImageService(reportImageRepo, reportRepo, cloudflareService)
 	blogService := service.NewBlogService(blogRepo)
 	pressReleaseService := service.NewPressReleaseService(pressReleaseRepo)
+	imageService := service.NewImageService(imageRepo, cloudflareService)
 	redirectService := service.NewRedirectService(redirectRepo)
 	dashboardService := service.NewDashboardService(
 		dashboardRepo, reportRepo, blogRepo, pressReleaseRepo,
@@ -179,6 +181,7 @@ func main() {
 	redirectHandler := handler.NewRedirectHandler(redirectService)
 	orderHandler := handler.NewOrderHandler(orderService)
 	webhookHandler := handler.NewWebhookHandler(orderService)
+	imageHandler := handler.NewImageHandler(imageService)
 
 	// Initialize Fiber app
 	app := fiber.New(fiber.Config{
@@ -359,6 +362,14 @@ func main() {
 	ordersGroup.Get("/stats", orderHandler.GetStats)
 	ordersGroup.Get("/:id", orderHandler.GetByID)
 	ordersGroup.Patch("/:id/status", orderHandler.UpdateStatus)
+
+	// Media library image routes (admin/editor only)
+	imagesGroup := v1.Group("/images", middleware.RequireAuth(authService), middleware.RequireRole("admin", "editor"))
+	imagesGroup.Post("/", imageHandler.Upload)
+	imagesGroup.Get("/", imageHandler.List)
+	imagesGroup.Get("/:id", imageHandler.GetByID)
+	imagesGroup.Patch("/:id", imageHandler.Update)
+	imagesGroup.Delete("/:id", middleware.RequireRole("admin"), imageHandler.Delete)
 
 	// Dashboard routes (requires authentication)
 	dashboard := v1.Group("/dashboard", middleware.RequireAuth(authService))

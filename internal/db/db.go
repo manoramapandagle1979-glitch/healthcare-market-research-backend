@@ -11,6 +11,7 @@ import (
 	"github.com/healthcare-market-research/backend/internal/domain/blog"
 	"github.com/healthcare-market-research/backend/internal/domain/category"
 	"github.com/healthcare-market-research/backend/internal/domain/form"
+	"github.com/healthcare-market-research/backend/internal/domain/image"
 	"github.com/healthcare-market-research/backend/internal/domain/order"
 	"github.com/healthcare-market-research/backend/internal/domain/press_release"
 	"github.com/healthcare-market-research/backend/internal/domain/redirect"
@@ -97,6 +98,7 @@ func Migrate() error {
 		&press_release.PressRelease{},
 		&redirect.Redirect{},
 		&order.Order{},
+		&image.Image{},
 	)
 
 	if err != nil {
